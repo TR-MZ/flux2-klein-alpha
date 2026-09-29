@@ -1,0 +1,150 @@
+# Object-Effect Removal LoRA on OBER (sczhou/OBERDataset_ObjectClear).
+#
+# Dataset layout produced by scripts/extract_ober_to_folders.py:
+#   datasets/OBER_ObjectClear/
+#     cutout/   <stem>.png  RGBA: input image, object_mask pixels at 50% alpha
+#     gt/      <stem>.jpg  ground-truth object-removed image (training target)
+#
+# At load time, control image alpha is composed against control_transparent_color
+# (black by default), so the cutout shows the input with the object area
+# half-darkened toward black -- the "hint" the model conditions on.
+#
+# Pinned to GPU 1 via the UI's gpu_ids field (CUDA_VISIBLE_DEVICES=1). Mirrors
+# ProgressBar_copy's hyperparameters so the two jobs run side-by-side.
+---
+job: extension
+config:
+  name: ObjectClear_OBER
+  process:
+    - type: diffusion_trainer
+      training_folder: /path/to/ai-toolkit/output
+      sqlite_db_path: /path/to/ai-toolkit/aitk_db.db
+      device: cuda
+      trigger_word: null
+      performance_log_every: 10
+
+      network:
+        type: lora
+        linear: 64
+        linear_alpha: 64
+        conv: 16
+        conv_alpha: 16
+        lokr_full_rank: true
+        lokr_factor: -1
+        network_kwargs:
+          ignore_if_contains: []
+        transformer_only: true
+
+      save:
+        dtype: bf16
+        save_every: 200
+        max_step_saves_to_keep: 4
+        save_format: diffusers
+        push_to_hub: false
+
+      datasets:
+        - folder_path: /path/to/ai-toolkit/datasets/OBER_ObjectClear/gt
+          mask_path: null
+          mask_min_value: 0.1
+          default_caption: "Photo with the object removed, clean background preserved."
+          caption_ext: txt
+          caption_dropout_rate: 0.05
+          cache_latents_to_disk: true
+          is_reg: false
+          network_weight: 1
+          resolution: [512, 768, 1024]
+          controls: []
+          shrink_video_to_frames: true
+          num_frames: 1
+          flip_x: false
+          flip_y: false
+          num_repeats: 1
+          control_path_1: /path/to/ai-toolkit/datasets/OBER_ObjectClear/cutout
+          control_path_2: null
+          control_path_3: null
+          control_transparent_color: [0, 0, 0]
+          cache_text_embeddings: true
+
+      train:
+        batch_size: 1
+        bypass_guidance_embedding: false
+        steps: 8000
+        gradient_accumulation: 2
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: flowmatch
+        optimizer: adamw
+        timestep_type: weighted
+        content_or_style: balanced
+        optimizer_params:
+          weight_decay: 0.001
+        unload_text_encoder: false
+        cache_text_embeddings: true
+        lr: 0.00001
+        ema_config:
+          use_ema: true
+          ema_decay: 0.99
+        skip_first_sample: true
+        force_first_sample: false
+        disable_sampling: false
+        dtype: bf16
+        diff_output_preservation: false
+        diff_output_preservation_multiplier: 1
+        diff_output_preservation_class: person
+        switch_boundary_every: 1
+        loss_type: mse
+        max_grad_norm: 1
+
+      logging:
+        log_every: 1
+        use_ui_logger: true
+
+      model:
+        name_or_path: black-forest-labs/FLUX.2-klein-base-9B
+        quantize: true
+        qtype: qfloat8
+        quantize_te: true
+        qtype_te: qfloat8
+        arch: flux2_klein_9b
+        low_vram: true
+        model_kwargs:
+          match_target_res: false
+        layer_offloading: true
+        layer_offloading_text_encoder_percent: 1
+        layer_offloading_transformer_percent: 1
+        vae_path: /path/to/weights/vae
+
+      sample:
+        sampler: flowmatch
+        sample_every: 200
+        width: 512
+        height: 512
+        samples:
+          - prompt: "Photo with the object removed, clean background preserved."
+            ctrl_img_1: /path/to/ai-toolkit/datasets/OBER_ObjectClear/cutout/00000_0000.png
+            width: 512
+            height: 512
+          - prompt: "Photo with the object removed, clean background preserved."
+            ctrl_img_1: /path/to/ai-toolkit/datasets/OBER_ObjectClear/cutout/00000_0001.png
+            width: 512
+            height: 512
+          - prompt: "Photo with the object removed, clean background preserved."
+            ctrl_img_1: /path/to/ai-toolkit/datasets/OBER_ObjectClear/cutout/00000_0002.png
+            width: 512
+            height: 512
+        neg: ""
+        seed: 42
+        walk_seed: true
+        guidance_scale: 4
+        sample_steps: 30
+        num_frames: 1
+        fps: 1
+
+  launch:
+    use_deepspeed_zero3: false
+    accelerate_config: config/accelerate/flux2_klein9b_zero3_2gpu.yaml
+
+meta:
+  name: "[name]"
+  version: "1.0"

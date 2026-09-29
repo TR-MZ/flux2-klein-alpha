@@ -1,0 +1,6 @@
+# The demo runs inside the Python environment of a patched ai-toolkit checkout
+# (install ai-toolkit's own requirements.txt first; it provides torch, diffusers,
+# transformers, optimum-quanto, safetensors, huggingface_hub, numpy, Pillow, ...).
+# On top of that the demo needs:
+gradio>=6.3,<7
+huggingface_hub>=0.34

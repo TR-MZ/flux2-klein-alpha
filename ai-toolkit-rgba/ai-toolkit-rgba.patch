@@ -1,0 +1,2974 @@
+diff --git a/README.md b/README.md
+index 3c5c9e9..70a2889 100644
+--- a/README.md
++++ b/README.md
+@@ -146,6 +146,14 @@ $env:AI_TOOLKIT_AUTH="super_secure_password"; npm run build_and_start
+ 2. Edit the file following the comments in the file
+ 3. Run the file like so `python run.py config/whatever_you_want.yml`
+ 
++For dual-GPU FLUX.2 Klein 9B training, start from `config/examples/train_lora_flux2_klein9b_2gpu.yaml` and launch it with Accelerate:
++
++```bash
++CUDA_VISIBLE_DEVICES=0,1 python -m accelerate.commands.launch --multi_gpu --num_processes 2 run.py config/whatever_you_want.yml
++```
++
++The effective global batch is `train.batch_size * train.gradient_accumulation * number_of_gpus`.
++
+ A folder with the name and the training folder from the config file will be created when you start. It will have all 
+ checkpoints and images in it. You can stop the training at any time using ctrl+c and when you resume, it will pick back up
+ from the last checkpoint.
+@@ -536,4 +544,3 @@ _Last updated: 2026-03-31 18:10 UTC_
+ </p>
+ 
+ ---
+-
+diff --git a/config/examples/train_lora_flux2_klein9b_2gpu.yaml b/config/examples/train_lora_flux2_klein9b_2gpu.yaml
+new file mode 100644
+index 0000000..8d8ce11
+--- /dev/null
++++ b/config/examples/train_lora_flux2_klein9b_2gpu.yaml
+@@ -0,0 +1,65 @@
++---
++job: extension
++config:
++  name: "my_flux2_klein9b_lora_2gpu_v1"
++  process:
++    - type: 'sd_trainer'
++      training_folder: "output"
++      device: cuda:0
++      network:
++        type: "lora"
++        linear: 16
++        linear_alpha: 16
++      save:
++        dtype: float16
++        save_every: 250
++        max_step_saves_to_keep: 4
++        push_to_hub: false
++      datasets:
++        - folder_path: "/path/to/images/folder"
++          caption_ext: "txt"
++          caption_dropout_rate: 0.05
++          shuffle_tokens: false
++          cache_latents_to_disk: true
++          resolution: [512, 768, 1024]
++      train:
++        batch_size: 1
++        steps: 2000
++        # Effective global batch is batch_size * gradient_accumulation * num_gpus.
++        gradient_accumulation: 2
++        train_unet: true
++        train_text_encoder: false
++        gradient_checkpointing: true
++        noise_scheduler: "flowmatch"
++        timestep_type: "weighted"
++        optimizer: "adamw8bit"
++        lr: 1e-4
++        ema_config:
++          use_ema: true
++          ema_decay: 0.99
++        dtype: bf16
++      model:
++        name_or_path: "black-forest-labs/FLUX.2-klein-base-9B"
++        arch: "flux2_klein_9b"
++        quantize: true
++        quantize_te: true
++        low_vram: true
++        qtype: "qfloat8"
++        model_kwargs:
++          match_target_res: false
++      sample:
++        sampler: "flowmatch"
++        sample_every: 250
++        width: 1024
++        height: 1024
++        prompts:
++          - "woman with red hair, playing chess at the park, cinematic photo"
++          - "a person holding a coffee cup, in a beanie, sitting at a cafe"
++        neg: ""
++        seed: 42
++        walk_seed: true
++        guidance_scale: 4
++        sample_steps: 20
++meta:
++  name: "[name]"
++  version: '1.0'
+diff --git a/extensions_built_in/diffusion_models/__init__.py b/extensions_built_in/diffusion_models/__init__.py
+index f30b4d2..6894b41 100644
+--- a/extensions_built_in/diffusion_models/__init__.py
++++ b/extensions_built_in/diffusion_models/__init__.py
+@@ -1,3 +1,5 @@
++from importlib import import_module
++
+ from .chroma import ChromaModel, ChromaRadianceModel
+ from .hidream import HidreamModel, HidreamE1Model
+ from .f_light import FLiteModel
+@@ -7,10 +9,44 @@ from .wan22 import Wan225bModel, Wan2214bModel, Wan2214bI2VModel
+ from .qwen_image import QwenImageModel, QwenImageEditModel, QwenImageEditPlusModel
+ from .flux2 import Flux2Model, Flux2Klein4BModel, Flux2Klein9BModel
+ from .z_image import ZImageModel
+-from .ltx2 import LTX2Model, LTX23Model
++
++
++def _missing_dependency_model(name, arch, feature, error):
++    class UnavailableModel:
++        _import_error = error
++
++        def __init__(self, *args, **kwargs):
++            raise ImportError(
++                f"{feature} support requires updated dependencies. "
++                "Run `pip install -r requirements.txt` in the ai-toolkit venv."
++            ) from self._import_error
++
++    UnavailableModel.__name__ = name
++    UnavailableModel.arch = arch
++    return UnavailableModel
++
++
++try:
++    vocoder_module = import_module("diffusers.pipelines.ltx2.vocoder")
++    if not hasattr(vocoder_module, "LTX2VocoderWithBWE"):
++        raise ImportError("Diffusers is missing LTX2VocoderWithBWE")
++    from .ltx2 import LTX2Model, LTX23Model
++except ImportError as ltx2_import_error:
++    LTX2Model = _missing_dependency_model("LTX2Model", "ltx2", "LTX2", ltx2_import_error)
++    LTX23Model = _missing_dependency_model("LTX23Model", "ltx2.3", "LTX2.3", ltx2_import_error)
+ from .zeta_chroma import ZetaChromaModel
+-from .ernie_image import ErnieImageModel
+-from .nucleus_image import NucleusImageModel
++try:
++    from .ernie_image import ErnieImageModel
++except ImportError as ernie_import_error:
++    ErnieImageModel = _missing_dependency_model(
++        "ErnieImageModel", "ernie_image", "Ernie Image", ernie_import_error
++    )
++try:
++    from .nucleus_image import NucleusImageModel
++except ImportError as nucleus_import_error:
++    NucleusImageModel = _missing_dependency_model(
++        "NucleusImageModel", "nucleus_image", "Nucleus Image", nucleus_import_error
++    )
+ from .hidream.hidream_o1_model import HidreamO1Model
+ 
+ AI_TOOLKIT_MODELS = [
+diff --git a/extensions_built_in/diffusion_models/flux2/flux2_klein_model.py b/extensions_built_in/diffusion_models/flux2/flux2_klein_model.py
+index 864bb41..702885c 100644
+--- a/extensions_built_in/diffusion_models/flux2/flux2_klein_model.py
++++ b/extensions_built_in/diffusion_models/flux2/flux2_klein_model.py
+@@ -4,7 +4,9 @@ from optimum.quanto import freeze
+ from toolkit.util.quantize import quantize, get_qtype
+ from toolkit.config_modules import ModelConfig
+ from toolkit.memory_management.manager import MemoryManager
++from toolkit.accelerator import no_zero3_init
+ from toolkit.basic import flush
++from toolkit.unloader import FakeTextEncoder
+ from .src.model import Klein9BParams, Klein4BParams
+ 
+ 
+@@ -38,12 +40,18 @@ class Flux2KleinModel(Flux2Model):
+         if self.flux2_klein_te_path is None:
+             raise ValueError("flux2_klein_te_path must be set for Flux2KleinModel")
+         dtype = self.torch_dtype
++        if self.defer_text_encoder_load:
++            self.print_and_status_update("Deferring Qwen3 load on non-main rank")
++            tokenizer = Qwen2Tokenizer.from_pretrained(self.flux2_klein_te_path)
++            return FakeTextEncoder(self.device_torch, dtype), tokenizer
++
+         self.print_and_status_update("Loading Qwen3")
+ 
+-        text_encoder: Qwen3ForCausalLM = Qwen3ForCausalLM.from_pretrained(
+-            self.flux2_klein_te_path,
+-            torch_dtype=dtype,
+-        )
++        with no_zero3_init():
++            text_encoder: Qwen3ForCausalLM = Qwen3ForCausalLM.from_pretrained(
++                self.flux2_klein_te_path,
++                torch_dtype=dtype,
++            )
+         if self.model_config.quantize_te:
+             self.print_and_status_update("Quantizing Qwen3")
+             quantize(text_encoder, weights=get_qtype(self.model_config.qtype_te))
+diff --git a/extensions_built_in/diffusion_models/flux2/flux2_model.py b/extensions_built_in/diffusion_models/flux2/flux2_model.py
+index e22a1cd..b014f2b 100644
+--- a/extensions_built_in/diffusion_models/flux2/flux2_model.py
++++ b/extensions_built_in/diffusion_models/flux2/flux2_model.py
+@@ -14,7 +14,8 @@ from toolkit.samplers.custom_flowmatch_sampler import (
+     CustomFlowMatchEulerDiscreteScheduler,
+ )
+ from toolkit.dequantize import patch_dequantization_on_save
+-from toolkit.accelerator import unwrap_model
++from toolkit.accelerator import no_zero3_init, unwrap_model
++from toolkit.unloader import FakeTextEncoder
+ from optimum.quanto import freeze, QTensor
+ from toolkit.util.quantize import quantize, get_qtype, quantize_model
+ 
+@@ -22,8 +23,10 @@ from transformers import AutoProcessor, Mistral3ForConditionalGeneration
+ from .src.model import Flux2, Flux2Params
+ from .src.pipeline import Flux2Pipeline
+ from .src.autoencoder import AutoEncoder, AutoEncoderParams, AutoEncoderSmallDecoderParams
++from .src.vae_adapter import DiffusersVAEAdapter
+ from safetensors.torch import load_file, save_file
+ from PIL import Image
++import numpy as np
+ import torch.nn.functional as F
+ 
+ if TYPE_CHECKING:
+@@ -79,6 +82,7 @@ class Flux2Model(BaseModel):
+         self.has_multiple_control_images = True
+         # do not resize control images
+         self.use_raw_control_images = True
++        self.defer_text_encoder_load = kwargs.get("defer_text_encoder_load", False)
+ 
+     # static method to get the noise scheduler
+     @staticmethod
+@@ -93,6 +97,11 @@ class Flux2Model(BaseModel):
+ 
+     def load_te(self):
+         dtype = self.torch_dtype
++        if self.defer_text_encoder_load:
++            self.print_and_status_update("Deferring Mistral load on non-main rank")
++            tokenizer = AutoProcessor.from_pretrained(MISTRAL_PATH)
++            return FakeTextEncoder(self.device_torch, dtype), tokenizer
++
+         self.print_and_status_update("Loading Mistral")
+ 
+         text_encoder: Mistral3ForConditionalGeneration = (
+@@ -101,7 +110,10 @@ class Flux2Model(BaseModel):
+                 torch_dtype=dtype,
+             )
+         )
+-        text_encoder.to(self.device_torch, dtype=dtype)
++        if self.model_config.low_vram:
++            text_encoder.to("cpu", dtype=dtype)
++        else:
++            text_encoder.to(self.device_torch, dtype=dtype)
+ 
+         flush()
+ 
+@@ -184,44 +196,54 @@ class Flux2Model(BaseModel):
+         text_encoder, tokenizer = self.load_te()
+ 
+         self.print_and_status_update("Loading VAE")
++        self.is_rgba_vae = False
+         vae_path = self.model_config.vae_path
+ 
+-        if os.path.exists(os.path.join(model_path, FLUX2_VAE_FILENAME)):
+-            vae_path = os.path.join(model_path, FLUX2_VAE_FILENAME)
++        if vae_path is not None and os.path.isdir(vae_path) and os.path.exists(os.path.join(vae_path, "config.json")):
++            from diffusers import AutoencoderKLFlux2
+ 
+-        if vae_path is None:
+-            vae_path = self.flux2_vae_path
++            self.print_and_status_update("Loading diffusers VAE from " + vae_path)
++            with no_zero3_init():
++                diffusers_vae = AutoencoderKLFlux2.from_pretrained(vae_path, torch_dtype=dtype)
++            vae = DiffusersVAEAdapter(diffusers_vae)
++            self.is_rgba_vae = vae.num_output_channels == 4
++        else:
++            if os.path.exists(os.path.join(model_path, FLUX2_VAE_FILENAME)):
++                vae_path = os.path.join(model_path, FLUX2_VAE_FILENAME)
++
++            if vae_path is None:
++                vae_path = self.flux2_vae_path
++
++            if vae_path is None or not os.path.exists(vae_path):
++                vae_filename = FLUX2_VAE_FILENAME
++                if vae_path is not None:
++                    # see if it is a filename for huggingface hub
++                    if len(vae_path.split("/")) == 3 and vae_path.endswith(".safetensors"):
++                        vae_filename = vae_path.split("/")[-1]
++                        vae_path = "/".join(vae_path.split("/")[:-1])
++                p = vae_path if vae_path is not None else model_path
++                # assume it is from the hub
++                vae_path = huggingface_hub.hf_hub_download(
++                    repo_id=p,
++                    filename=vae_filename,
++                    token=HF_TOKEN,
++                )
+ 
+-        if vae_path is None or not os.path.exists(vae_path):
+-            vae_filename = FLUX2_VAE_FILENAME
+-            if vae_path is not None:
+-                # see if it is a filename for huggingface hub
+-                if len(vae_path.split("/")) == 3 and vae_path.endswith(".safetensors"):
+-                    vae_filename = vae_path.split("/")[-1]
+-                    vae_path = "/".join(vae_path.split("/")[:-1])
+-            p = vae_path if vae_path is not None else model_path
+-            # assume it is from the hub
+-            vae_path = huggingface_hub.hf_hub_download(
+-                repo_id=p,
+-                filename=vae_filename,
+-                token=HF_TOKEN,
+-            )
+-        
+-        vae_state_dict = load_file(vae_path, device="cpu")
+-        
+-        autoencoder_params = AutoEncoderParams()
+-        if vae_state_dict['decoder.up.0.block.0.conv1.bias'].shape[0] == 96:
+-            # this is the small decoder version
+-            autoencoder_params = AutoEncoderSmallDecoderParams()
+-        
+-        with torch.device("meta"):
+-            vae = AutoEncoder(autoencoder_params)
++            vae_state_dict = load_file(vae_path, device="cpu")
+ 
+-        # cast to dtype
+-        for key in vae_state_dict:
+-            vae_state_dict[key] = vae_state_dict[key].to(dtype)
++            autoencoder_params = AutoEncoderParams()
++            if vae_state_dict['decoder.up.0.block.0.conv1.bias'].shape[0] == 96:
++                # this is the small decoder version
++                autoencoder_params = AutoEncoderSmallDecoderParams()
++
++            with torch.device("meta"):
++                vae = AutoEncoder(autoencoder_params)
++
++            # cast to dtype
++            for key in vae_state_dict:
++                vae_state_dict[key] = vae_state_dict[key].to(dtype)
+ 
+-        vae.load_state_dict(vae_state_dict, assign=True)
++            vae.load_state_dict(vae_state_dict, assign=True)
+ 
+         self.noise_scheduler = Flux2Model.get_train_scheduler()
+ 
+@@ -299,38 +321,60 @@ class Flux2Model(BaseModel):
+             gen_config.height // self.get_bucket_divisibility()
+         ) * self.get_bucket_divisibility()
+ 
++        ctrl_img_mode = "RGBA" if self.is_rgba_vae else "RGB"
+         control_img_list = []
+         if gen_config.ctrl_img is not None:
+             control_img = Image.open(gen_config.ctrl_img)
+-            control_img = control_img.convert("RGB")
++            control_img = control_img.convert(ctrl_img_mode)
+             control_img_list.append(control_img)
+         elif gen_config.ctrl_img_1 is not None:
+             control_img = Image.open(gen_config.ctrl_img_1)
+-            control_img = control_img.convert("RGB")
++            control_img = control_img.convert(ctrl_img_mode)
+             control_img_list.append(control_img)
+         if gen_config.ctrl_img_2 is not None:
+             control_img = Image.open(gen_config.ctrl_img_2)
+-            control_img = control_img.convert("RGB")
++            control_img = control_img.convert(ctrl_img_mode)
+             control_img_list.append(control_img)
+         if gen_config.ctrl_img_3 is not None:
+             control_img = Image.open(gen_config.ctrl_img_3)
+-            control_img = control_img.convert("RGB")
++            control_img = control_img.convert(ctrl_img_mode)
+             control_img_list.append(control_img)
+ 
+         if not self.flux2_is_guidance_distilled:
+             extra["negative_prompt_embeds"] = unconditional_embeds.text_embeds
+ 
+-        img = pipeline(
+-            prompt_embeds=conditional_embeds.text_embeds,
+-            height=gen_config.height,
+-            width=gen_config.width,
+-            num_inference_steps=gen_config.num_inference_steps,
+-            guidance_scale=gen_config.guidance_scale,
+-            latents=gen_config.latents,
+-            generator=generator,
+-            control_img_list=control_img_list,
+-            **extra,
+-        ).images[0]
++        if self.is_rgba_vae:
++            result = pipeline(
++                prompt_embeds=conditional_embeds.text_embeds,
++                height=gen_config.height,
++                width=gen_config.width,
++                num_inference_steps=gen_config.num_inference_steps,
++                guidance_scale=gen_config.guidance_scale,
++                latents=gen_config.latents,
++                generator=generator,
++                control_img_list=control_img_list,
++                output_type="latent",
++                **extra,
++            )
++            latents = result.images.to(device=self.device_torch, dtype=self.torch_dtype)
++            with torch.no_grad():
++                decoded = self.vae.decode(latents).float()
++            decoded = (decoded + 1.0) / 2.0
++            decoded = decoded.clamp(0, 1)
++            img_np = (decoded[0].permute(1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
++            img = Image.fromarray(img_np, mode="RGBA")
++        else:
++            img = pipeline(
++                prompt_embeds=conditional_embeds.text_embeds,
++                height=gen_config.height,
++                width=gen_config.width,
++                num_inference_steps=gen_config.num_inference_steps,
++                guidance_scale=gen_config.guidance_scale,
++                latents=gen_config.latents,
++                generator=generator,
++                control_img_list=control_img_list,
++                **extra,
++            ).images[0]
+         return img
+ 
+     def get_noise_prediction(
+@@ -484,7 +528,13 @@ class Flux2Model(BaseModel):
+             output_path = output_path + ".safetensors"
+         # only save the unet
+         transformer: Flux2 = unwrap_model(self.model)
+-        state_dict = transformer.state_dict()
++        # under deepspeed zero3 the trainer hands us weights already consolidated
++        # across ranks, since transformer.state_dict() would only hold this rank's shard
++        state_dict = getattr(self, "pending_full_state_dict", None)
++        if state_dict is None:
++            state_dict = transformer.state_dict()
++        else:
++            self.pending_full_state_dict = None
+         save_dict = {}
+         for k, v in state_dict.items():
+             if isinstance(v, QTensor):
+diff --git a/extensions_built_in/diffusion_models/flux2/src/sampling.py b/extensions_built_in/diffusion_models/flux2/src/sampling.py
+index b02af2d..6cdc1b0 100644
+--- a/extensions_built_in/diffusion_models/flux2/src/sampling.py
++++ b/extensions_built_in/diffusion_models/flux2/src/sampling.py
+@@ -263,6 +263,8 @@ def to_rgb(
+         ]
+     if isinstance(img, torch.Tensor):
+         return img  # assume already in tensor format
++    if img.mode == "RGBA":
++        return img
+     return img.convert("RGB")
+ 
+ 
+diff --git a/extensions_built_in/diffusion_models/hidream/src/hidream_o1/qwen3_vl_transformers.py b/extensions_built_in/diffusion_models/hidream/src/hidream_o1/qwen3_vl_transformers.py
+index 17884fc..bac7cbb 100644
+--- a/extensions_built_in/diffusion_models/hidream/src/hidream_o1/qwen3_vl_transformers.py
++++ b/extensions_built_in/diffusion_models/hidream/src/hidream_o1/qwen3_vl_transformers.py
+@@ -38,7 +38,12 @@ from transformers.utils import (
+     is_torchdynamo_compiling,
+ )
+ from transformers.utils.deprecation import deprecate_kwarg
+-from transformers.utils.generic import merge_with_config_defaults
++try:
++    from transformers.utils.generic import merge_with_config_defaults
++except ImportError:
++    from transformers.utils.generic import check_model_inputs
++
++    merge_with_config_defaults = check_model_inputs()
+ from transformers.models.qwen3_vl.configuration_qwen3_vl import (
+     Qwen3VLConfig,
+     Qwen3VLTextConfig,
+diff --git a/extensions_built_in/sd_trainer/SDTrainer.py b/extensions_built_in/sd_trainer/SDTrainer.py
+index 46e1f3c..e6d877c 100644
+--- a/extensions_built_in/sd_trainer/SDTrainer.py
++++ b/extensions_built_in/sd_trainer/SDTrainer.py
+@@ -11,6 +11,7 @@ from safetensors.torch import load_file
+ from torch.utils.data import DataLoader, ConcatDataset
+ 
+ from toolkit import train_tools
++from toolkit.accelerator import unwrap_model
+ from toolkit.basic import value_map, adain, get_mean_std
+ from toolkit.clip_vision_adapter import ClipVisionAdapter
+ from toolkit.config_modules import GenerateImageConfig
+@@ -109,6 +110,9 @@ class SDTrainer(BaseSDTrainProcess):
+         else:
+             raise ValueError(f"Unknown guidance loss target type {type(self.train_config.guidance_loss_target)}")
+ 
++        # only complain once if the sharpness term cannot be computed
++        self._warned_no_sharpness_loss: bool = False
++
+ 
+     def before_model_load(self):
+         pass
+@@ -240,29 +244,37 @@ class SDTrainer(BaseSDTrainProcess):
+ 
+     def hook_before_train_loop(self):
+         super().hook_before_train_loop()
++        defer_text_encoder = (
++            getattr(self.sd, "defer_text_encoder_load", False)
++            and self._accelerator_uses_deepspeed()
++            and not self.accelerator.is_main_process
++        )
+         if self.is_caching_text_embeddings:
+             # make sure model is on cpu for this part so we don't oom.
+             self.sd.unet.to('cpu')
+         
+         # cache unconditional embeds (blank prompt)
+-        with torch.no_grad():
+-            kwargs = {}
+-            if self.sd.encode_control_in_text_embeddings:
+-                # just do a blank image for unconditionals
+-                control_image = torch.zeros((1, 3, 224, 224), device=self.sd.device_torch, dtype=self.sd.torch_dtype)
+-                if self.sd.has_multiple_control_images:
+-                    control_image = [control_image]
+-                
+-                kwargs['control_images'] = control_image
+-            self.unconditional_embeds = self.sd.encode_prompt(
+-                [self.train_config.unconditional_prompt],
+-                long_prompts=self.do_long_prompts,
+-                **kwargs
+-            ).to(
+-                self.device_torch,
+-                dtype=self.sd.torch_dtype
+-            ).detach()
+-        
++        if not defer_text_encoder:
++            with torch.no_grad():
++                kwargs = {}
++                if self.sd.encode_control_in_text_embeddings:
++                    # just do a blank image for unconditionals
++                    control_image = torch.zeros((1, 3, 224, 224), device=self.sd.device_torch, dtype=self.sd.torch_dtype)
++                    if self.sd.has_multiple_control_images:
++                        control_image = [control_image]
++
++                    kwargs['control_images'] = control_image
++                self.unconditional_embeds = self.sd.encode_prompt(
++                    [self.train_config.unconditional_prompt],
++                    long_prompts=self.do_long_prompts,
++                    **kwargs
++                ).to(
++                    self.device_torch,
++                    dtype=self.sd.torch_dtype
++                ).detach()
++        elif self.train_config.do_guidance_loss:
++            raise ValueError("DeepSpeed deferred text encoder mode does not support guidance loss yet.")
++
+         if self.train_config.do_prior_divergence:
+             self.do_prior_prediction = True
+         # move vae to device if we did not cache latents
+@@ -305,45 +317,52 @@ class SDTrainer(BaseSDTrainProcess):
+ 
+         # handle unload text encoder
+         if self.train_config.unload_text_encoder or self.is_caching_text_embeddings:
+-            print_acc("Caching embeddings and unloading text encoder")
+-            with torch.no_grad():
+-                if self.train_config.train_text_encoder:
+-                    raise ValueError("Cannot unload text encoder if training text encoder")
+-                # cache embeddings
+-                self.sd.text_encoder_to(self.device_torch)
+-                encode_kwargs = {}
+-                if self.sd.encode_control_in_text_embeddings:
+-                    # just do a blank image for unconditionals
+-                    control_image = torch.zeros((1, 3, 224, 224), device=self.sd.device_torch, dtype=self.sd.torch_dtype)
+-                    if self.sd.has_multiple_control_images:
+-                        control_image = [control_image]
+-                    encode_kwargs['control_images'] = control_image
+-                self.cached_blank_embeds = self.sd.encode_prompt("", **encode_kwargs)
+-                if self.trigger_word is not None:
+-                    self.cached_trigger_embeds = self.sd.encode_prompt(self.trigger_word, **encode_kwargs)
+-                if self.train_config.diff_output_preservation:
+-                    self.diff_output_preservation_embeds = self.sd.encode_prompt(self.train_config.diff_output_preservation_class)
+-                
+-                self.cache_sample_prompts()
+-                
+-                print_acc("\n***** UNLOADING TEXT ENCODER *****")
+-                if self.is_caching_text_embeddings:
+-                    print_acc("Embeddings cached to disk. We dont need the text encoder anymore")
+-                else:
+-                    print_acc("This will train only with a blank prompt or trigger word, if set")
+-                    print_acc("If this is not what you want, remove the unload_text_encoder flag")
+-                print_acc("***********************************")
+-                print_acc("")
+-
+-                # unload the text encoder
+-                if self.is_caching_text_embeddings:
+-                    unload_text_encoder(self.sd)
+-                else:
+-                    # todo once every model is tested to work, unload properly. Though, this will all be merged into one thing.
+-                    # keep legacy usage for now. 
+-                    self.sd.text_encoder_to("cpu")
+-                flush()
+-        
++            if defer_text_encoder:
++                if self.train_config.do_cfg or self.train_config.blank_prompt_preservation or self.train_config.diff_output_preservation:
++                    raise ValueError(
++                        "DeepSpeed deferred text encoder mode requires cached dataset embeddings "
++                        "and does not support CFG/preservation embeddings yet."
++                    )
++            else:
++                print_acc("Caching embeddings and unloading text encoder")
++                with torch.no_grad():
++                    if self.train_config.train_text_encoder:
++                        raise ValueError("Cannot unload text encoder if training text encoder")
++                    # cache embeddings
++                    self.sd.text_encoder_to(self.device_torch)
++                    encode_kwargs = {}
++                    if self.sd.encode_control_in_text_embeddings:
++                        # just do a blank image for unconditionals
++                        control_image = torch.zeros((1, 3, 224, 224), device=self.sd.device_torch, dtype=self.sd.torch_dtype)
++                        if self.sd.has_multiple_control_images:
++                            control_image = [control_image]
++                        encode_kwargs['control_images'] = control_image
++                    self.cached_blank_embeds = self.sd.encode_prompt("", **encode_kwargs)
++                    if self.trigger_word is not None:
++                        self.cached_trigger_embeds = self.sd.encode_prompt(self.trigger_word, **encode_kwargs)
++                    if self.train_config.diff_output_preservation:
++                        self.diff_output_preservation_embeds = self.sd.encode_prompt(self.train_config.diff_output_preservation_class)
++
++                    self.cache_sample_prompts()
++
++                    print_acc("\n***** UNLOADING TEXT ENCODER *****")
++                    if self.is_caching_text_embeddings:
++                        print_acc("Embeddings cached to disk. We dont need the text encoder anymore")
++                    else:
++                        print_acc("This will train only with a blank prompt or trigger word, if set")
++                        print_acc("If this is not what you want, remove the unload_text_encoder flag")
++                    print_acc("***********************************")
++                    print_acc("")
++
++                    # unload the text encoder
++                    if self.is_caching_text_embeddings:
++                        unload_text_encoder(self.sd)
++                    else:
++                        # todo once every model is tested to work, unload properly. Though, this will all be merged into one thing.
++                        # keep legacy usage for now.
++                        self.sd.text_encoder_to("cpu")
++                    flush()
++
+         if self.train_config.blank_prompt_preservation and self.cached_blank_embeds is None:
+             # make sure we have this if not unloading
+             self.cached_blank_embeds = self.sd.encode_prompt("").to(
+@@ -477,6 +496,127 @@ class SDTrainer(BaseSDTrainProcess):
+ 
+         return output, batch.tensor.to(self.device_torch, dtype=get_torch_dtype(self.train_config.dtype))
+ 
++    def get_edge_loss_weight(
++            self,
++            batch: 'DataLoaderBatchDTO',
++            loss_shape: torch.Size
++    ) -> Union[torch.Tensor, None]:
++        """Build a mean 1.0 spatial loss weight that concentrates on target edges.
++
++        A latent space loss is nearly indifferent to a wide, low amplitude ramp
++        at an object boundary. That is the failure this fixes: instead of a hard
++        edge the model learns a soft semi transparent stroke around the subject,
++        because spreading a small error over a band of latent cells costs it
++        almost nothing. Here the boundary of the target image is located in pixel
++        space, max pooled down to the loss resolution, then dilated outward so
++        the band the halo occupies is weighted along with the edge itself.
++
++        Returns None when the target pixels are not available (cached latents),
++        in which case the caller leaves the loss unweighted.
++        """
++        if batch.tensor is None:
++            # latents were cached, so there are no pixels to find edges in
++            return None
++        if len(loss_shape) != 4:
++            # video losses are B,C,T,H,W, not handled
++            return None
++
++        with torch.no_grad():
++            src = batch.tensor.to(self.device_torch, dtype=torch.float32)
++            source = self.train_config.edge_loss_source
++            if source == 'auto':
++                source = 'alpha' if src.shape[1] == 4 else 'luma'
++            if source == 'alpha' and src.shape[1] == 4:
++                # the transparency boundary is the thing being learned
++                ch = src[:, 3:4]
++            else:
++                ch = src.mean(dim=1, keepdim=True)
++
++            # first order differences, padded back to the original size
++            gx = torch.nn.functional.pad((ch[:, :, :, 1:] - ch[:, :, :, :-1]).abs(), (0, 1, 0, 0))
++            gy = torch.nn.functional.pad((ch[:, :, 1:, :] - ch[:, :, :-1, :]).abs(), (0, 0, 0, 1))
++            edge = gx + gy
++
++            # max pool, not average, so a one pixel edge survives the trip down
++            # to latent resolution instead of being averaged into nothing
++            edge = torch.nn.functional.adaptive_max_pool2d(edge, (loss_shape[2], loss_shape[3]))
++
++            dilate = int(self.train_config.edge_loss_dilate)
++            if dilate > 0:
++                edge = torch.nn.functional.max_pool2d(
++                    edge, kernel_size=dilate * 2 + 1, stride=1, padding=dilate
++                )
++
++            # normalize per sample so the weight does not depend on how much
++            # contrast a given image happens to have at its boundary
++            peak = edge.amax(dim=(2, 3), keepdim=True).clamp(min=1e-4)
++            edge = (edge / peak).clamp(0.0, 1.0)
++
++            weight = 1.0 + self.train_config.edge_loss_multiplier * edge
++            # rescale to a mean of 1.0 so this does not change the overall loss
++            # magnitude, and therefore does not change the effective lr
++            weight = weight / weight.mean(dim=(1, 2, 3), keepdim=True).clamp(min=1e-4)
++
++        return weight.detach()
++
++    def get_sharpness_loss(
++            self,
++            noise_pred: torch.Tensor,
++            noisy_latents: torch.Tensor,
++            timesteps: torch.Tensor,
++            batch: 'DataLoaderBatchDTO'
++    ):
++        """Penalize the prediction for having flatter gradients than the target.
++
++        mse only sees the amplitude of an error, so a blurred edge, whose error
++        is small but spread wide, is cheap. Comparing spatial derivatives makes
++        it expensive: a soft ramp differs from a step most in its derivative.
++        The x0 reconstruction is only meaningful at low noise, so the term fades
++        out as the timestep rises.
++        """
++        if batch.latents is None or not self.sd.is_flow_matching:
++            if not self._warned_no_sharpness_loss:
++                self._warned_no_sharpness_loss = True
++                print_acc(
++                    "sharpness_loss_multiplier is set but unusable here "
++                    f"(latents={'present' if batch.latents is not None else 'None'}, "
++                    f"flow_matching={self.sd.is_flow_matching}). Term is disabled."
++                )
++            return 0.0
++        target_latents = batch.latents.to(noise_pred.device, dtype=torch.float32).detach()
++        if target_latents.shape != noise_pred.shape:
++            if not self._warned_no_sharpness_loss:
++                self._warned_no_sharpness_loss = True
++                print_acc(
++                    "sharpness_loss_multiplier is set but the prediction and target "
++                    f"latents differ in shape ({tuple(noise_pred.shape)} vs "
++                    f"{tuple(target_latents.shape)}). Term is disabled."
++                )
++            return 0.0
++
++        t = (timesteps.to(noise_pred.device, dtype=torch.float32) / 1000.0).clamp(0.0, 1.0)
++        tv = t.clamp(min=1e-3)
++        while len(tv.shape) < len(noise_pred.shape):
++            tv = tv.unsqueeze(-1)
++
++        # flow matching: x0 = xt - t * v, the same reconstruction t0_loss_target uses
++        x0_pred = noisy_latents.to(torch.float32) - tv * noise_pred.to(torch.float32)
++
++        def grads(x):
++            return x[..., :, 1:] - x[..., :, :-1], x[..., 1:, :] - x[..., :-1, :]
++
++        pred_gx, pred_gy = grads(x0_pred)
++        target_gx, target_gy = grads(target_latents)
++
++        reduce_x = list(range(1, pred_gx.dim()))
++        reduce_y = list(range(1, pred_gy.dim()))
++        per_sample = (pred_gx - target_gx).abs().mean(dim=reduce_x) \
++            + (pred_gy - target_gy).abs().mean(dim=reduce_y)
++
++        # weight toward low noise timesteps, where x0 is an actual image
++        per_sample = per_sample * (1.0 - t)
++        return per_sample.mean() * self.train_config.sharpness_loss_multiplier
++
+     # you can expand these in a child class to make customization easier
+     def calculate_loss(
+             self,
+@@ -827,6 +967,19 @@ class SDTrainer(BaseSDTrainProcess):
+                     timestep_weight = timestep_weight.view(-1, 1, 1, 1, 1).detach()
+                 loss = loss * timestep_weight
+ 
++        # concentrate the loss on the target's edges so a soft, semi transparent
++        # boundary is no longer a cheap place for the model to hide error
++        if self.train_config.edge_loss_multiplier > 0:
++            edge_weight = self.get_edge_loss_weight(batch, loss.shape)
++            if edge_weight is not None:
++                loss = loss * edge_weight
++
++        # and penalize the blur itself, which mse under weights by construction
++        if self.train_config.sharpness_loss_multiplier > 0 and not self.train_config.train_turbo:
++            additional_loss = additional_loss + self.get_sharpness_loss(
++                noise_pred, noisy_latents, timesteps, batch
++            )
++
+         if self.train_config.do_prior_divergence and prior_pred is not None:
+             loss = loss + (torch.nn.functional.mse_loss(pred.float(), prior_pred.float(), reduction="none") * -1.0)
+ 
+@@ -1080,7 +1233,7 @@ class SDTrainer(BaseSDTrainProcess):
+         loss = loss.mean()
+         if loss.item() > 1e3:
+             pass
+-        self.accelerator.backward(loss)
++        self.backward_loss(loss)
+         return pure_loss
+ 
+ 
+@@ -1102,9 +1255,10 @@ class SDTrainer(BaseSDTrainProcess):
+         # todo for embeddings, we need to run without trigger words
+         was_unet_training = self.sd.unet.training
+         was_network_active = False
+-        if self.network is not None:
+-            was_network_active = self.network.is_active
+-            self.network.is_active = False
++        network = unwrap_model(self.network) if self.network is not None else None
++        if network is not None:
++            was_network_active = network.is_active
++            network.is_active = False
+         can_disable_adapter = False
+         was_adapter_active = False
+         if self.adapter is not None and (isinstance(self.adapter, IPAdapter) or
+@@ -1211,8 +1365,8 @@ class SDTrainer(BaseSDTrainProcess):
+                 self.adapter.is_active = was_adapter_active
+             # restore network
+             # self.network.multiplier = network_weight_list
+-            if self.network is not None:
+-                self.network.is_active = was_network_active
++            if network is not None:
++                network.is_active = was_network_active
+         return prior_pred
+ 
+     def before_unet_predict(self):
+@@ -1427,7 +1581,7 @@ class SDTrainer(BaseSDTrainProcess):
+ 
+             # have a blank network so we can wrap it in a context and set multipliers without checking every time
+             if self.network is not None:
+-                network = self.network
++                network = unwrap_model(self.network)
+             else:
+                 network = BlankNetwork()
+ 
+@@ -2035,7 +2189,7 @@ class SDTrainer(BaseSDTrainProcess):
+                     
+                     if self.train_config.diff_output_preservation or self.train_config.blank_prompt_preservation:
+                         # send the loss backwards otherwise checkpointing will fail
+-                        self.accelerator.backward(loss)
++                        self.backward_loss(loss)
+                         normal_loss = loss.detach() # dont send backward again
+                         
+                         with torch.no_grad():
+@@ -2058,7 +2212,7 @@ class SDTrainer(BaseSDTrainProcess):
+                         )
+                         multiplier = self.train_config.diff_output_preservation_multiplier if self.train_config.diff_output_preservation else self.train_config.blank_prompt_preservation_multiplier
+                         preservation_loss = torch.nn.functional.mse_loss(preservation_pred, prior_pred) * multiplier
+-                        self.accelerator.backward(preservation_loss)
++                        self.backward_loss(preservation_loss)
+ 
+                         loss = normal_loss + preservation_loss
+                         loss = loss.clone().detach()
+@@ -2082,7 +2236,7 @@ class SDTrainer(BaseSDTrainProcess):
+                     # if self.is_bfloat:
+                     # loss.backward()
+                     # else:
+-                    self.accelerator.backward(loss)
++                    self.backward_loss(loss)
+ 
+         return loss.detach()
+         # flush()
+@@ -2093,7 +2247,12 @@ class SDTrainer(BaseSDTrainProcess):
+         else:
+             batch_list = [batch]
+         total_loss = None
+-        self.optimizer.zero_grad()
++        if self.train_config.gradient_accumulation > 1:
++            self.current_gradient_accumulation = max(1, len(batch_list))
++        elif self.train_config.gradient_accumulation_steps > 1:
++            self.current_gradient_accumulation = self.train_config.gradient_accumulation_steps
++        else:
++            self.current_gradient_accumulation = 1
+         for batch in batch_list:
+             if self.sd.is_multistage:
+                 # handle multistage switching
+@@ -2135,14 +2294,12 @@ class SDTrainer(BaseSDTrainProcess):
+             if self.ema is not None:
+                 with self.timer('ema_update'):
+                     self.ema.update()
++            with self.timer('scheduler_step'):
++                self.lr_scheduler.step()
+         else:
+             # gradient accumulation. Just a place for breakpoint
+             pass
+ 
+-        # TODO Should we only step scheduler on grad step? If so, need to recalculate last step
+-        with self.timer('scheduler_step'):
+-            self.lr_scheduler.step()
+-
+         if self.embedding is not None:
+             with self.timer('restore_embeddings'):
+                 # Let's make sure we don't update any embedding weights besides the newly added token
+diff --git a/jobs/process/BaseSDTrainProcess.py b/jobs/process/BaseSDTrainProcess.py
+index 2ddf684..469ad58 100644
+--- a/jobs/process/BaseSDTrainProcess.py
++++ b/jobs/process/BaseSDTrainProcess.py
+@@ -74,6 +74,34 @@ from toolkit.util.get_model import get_model_class
+ from toolkit.basic import flush
+ 
+ 
++class ShardedDataLoader:
++    def __init__(self, dataloader: DataLoader, process_index: int, num_processes: int):
++        self.dataloader = dataloader
++        self.process_index = process_index
++        self.num_processes = max(1, num_processes)
++        self.dataset = dataloader.dataset
++
++    def __iter__(self):
++        try:
++            dataloader_len = len(self.dataloader)
++        except TypeError:
++            dataloader_len = None
++
++        should_shard = self.num_processes > 1 and (dataloader_len is None or dataloader_len >= self.num_processes)
++        for idx, batch in enumerate(self.dataloader):
++            if not should_shard or idx % self.num_processes == self.process_index:
++                yield batch
++
++    def __len__(self):
++        dataloader_len = len(self.dataloader)
++        if self.num_processes <= 1 or dataloader_len < self.num_processes:
++            return dataloader_len
++        return (dataloader_len + self.num_processes - 1 - self.process_index) // self.num_processes
++
++    def __getattr__(self, name):
++        return getattr(self.dataloader, name)
++
++
+ class BaseSDTrainProcess(BaseTrainProcess):
+ 
+     def __init__(self, process_id: int, job, config: OrderedDict, custom_pipeline=None):
+@@ -98,6 +126,7 @@ class BaseSDTrainProcess(BaseTrainProcess):
+         self.grad_accumulation_step = 1
+         # if true, then we do not do an optimizer step. We are accumulating gradients
+         self.is_grad_accumulation_step = False
++        self.current_gradient_accumulation = 1
+         self.device = str(self.accelerator.device)
+         self.device_torch = self.accelerator.device
+         network_config = self.get_conf('network', None)
+@@ -487,7 +516,29 @@ class BaseSDTrainProcess(BaseTrainProcess):
+     def end_step_hook(self):
+         pass
+ 
++    def gather_deepspeed_zero3_state_dict(self):
++        # Under ZeRO-3 every rank only holds a shard of the transformer, so a plain
++        # state_dict() would write empty tensors. Consolidating is a collective, so
++        # this has to run on every rank before the main-process guard below. Returns
++        # the full state dict on rank 0 and an empty one everywhere else.
++        if not self.is_fine_tuning or not self._accelerator_uses_deepspeed():
++            return None
++        engine = self.sd.unet
++        if not hasattr(engine, 'zero_optimization_stage') or engine.zero_optimization_stage() != 3:
++            return None
++        if not engine.zero_gather_16bit_weights_on_model_save():
++            raise ValueError(
++                "Full fine tuning under ZeRO-3 needs stage3_gather_16bit_weights_on_model_save: true "
++                "in the deepspeed config, otherwise checkpoints save as empty tensors."
++            )
++        return engine._zero3_consolidated_16bit_state_dict()
++
+     def save(self, step=None):
++        # collective, must happen on all ranks before the main process guard
++        zero3_state_dict = self.gather_deepspeed_zero3_state_dict()
++        if zero3_state_dict is not None:
++            self.sd.pending_full_state_dict = zero3_state_dict
++
+         if not self.accelerator.is_main_process:
+             return
+         flush()
+@@ -520,6 +571,7 @@ class BaseSDTrainProcess(BaseTrainProcess):
+         save_meta = get_meta_for_safetensors(save_meta, self.job.name)
+         if not self.is_fine_tuning and not self.train_config.merge_network_on_save:
+             if self.network is not None:
++                network_to_save = unwrap_model(self.network)
+                 lora_name = self.job.name
+                 if self.named_lora:
+                     # add _lora to name
+@@ -527,18 +579,18 @@ class BaseSDTrainProcess(BaseTrainProcess):
+ 
+                 filename = f'{lora_name}{step_num}.safetensors'
+                 file_path = os.path.join(self.save_root, filename)
+-                prev_multiplier = self.network.multiplier
+-                self.network.multiplier = 1.0
++                prev_multiplier = network_to_save.multiplier
++                network_to_save.multiplier = 1.0
+ 
+                 # if we are doing embedding training as well, add that
+                 embedding_dict = self.embedding.state_dict() if self.embedding else None
+-                self.network.save_weights(
++                network_to_save.save_weights(
+                     file_path,
+                     dtype=get_torch_dtype(self.save_config.dtype),
+                     metadata=save_meta,
+                     extra_state_dict=embedding_dict
+                 )
+-                self.network.multiplier = prev_multiplier
++                network_to_save.multiplier = prev_multiplier
+                 # if we have an embedding as well, pair it with the network
+ 
+             # even if added to lora, still save the trigger version
+@@ -721,6 +773,13 @@ class BaseSDTrainProcess(BaseTrainProcess):
+     def prepare_accelerator(self):
+         # set some config
+         self.accelerator.even_batches=False
++
++        if self._accelerator_uses_deepspeed():
++            self.prepare_accelerator_deepspeed()
++            # device state presets flipped these off while the text encoder was
++            # cached; nothing else turns them back on before the first forward
++            self.ensure_params_requires_grad(force=True)
++            return
+         
+         # # prepare all the models stuff for accelerator (hopefully we dont miss any)
+         self.sd.vae = self.accelerator.prepare(self.sd.vae)
+@@ -751,9 +810,89 @@ class BaseSDTrainProcess(BaseTrainProcess):
+         self.optimizer = self.accelerator.prepare(self.optimizer)
+         if self.lr_scheduler is not None:
+             self.lr_scheduler = self.accelerator.prepare(self.lr_scheduler)
+-        # self.data_loader = self.accelerator.prepare(self.data_loader)
+-        # if self.data_loader_reg is not None:
+-        #     self.data_loader_reg = self.accelerator.prepare(self.data_loader_reg)
++        if self.data_loader is not None:
++            self.data_loader = ShardedDataLoader(
++                self.data_loader,
++                process_index=self.accelerator.process_index,
++                num_processes=self.accelerator.num_processes,
++            )
++        if self.data_loader_reg is not None:
++            self.data_loader_reg = ShardedDataLoader(
++                self.data_loader_reg,
++                process_index=self.accelerator.process_index,
++                num_processes=self.accelerator.num_processes,
++            )
++
++    def _accelerator_uses_deepspeed(self):
++        distributed_type = getattr(self.accelerator, "distributed_type", None)
++        return str(distributed_type).lower().endswith("deepspeed")
++
++    def prepare_accelerator_deepspeed(self):
++        if self.train_config.train_text_encoder:
++            raise ValueError(
++                "DeepSpeed training in AI Toolkit currently supports the LoRA/full-transformer "
++                "path only. Set train_text_encoder: false."
++            )
++        if self.sd.refiner_unet is not None and self.train_config.train_refiner:
++            raise ValueError("DeepSpeed training with a refiner is not supported in this trainer path.")
++        if self.adapter is not None and self.adapter_config.train:
++            raise ValueError("DeepSpeed training with a trainable adapter is not supported in this trainer path.")
++
++        model_to_prepare = None
++        set_prepared_model = None
++
++        if self.network is not None:
++            model_to_prepare = self.network
++
++            def set_prepared_model(model):
++                self.network = model
++                self.sd.network = model
++
++        elif self.sd.unet is not None and self.train_config.train_unet:
++            model_to_prepare = self.sd.unet
++
++            def set_prepared_model(model):
++                self.sd.unet = model
++
++        if model_to_prepare is None:
++            raise ValueError("DeepSpeed requires one trainable model, but none was found to prepare.")
++
++        prepare_args = [model_to_prepare, self.optimizer]
++        has_scheduler = self.lr_scheduler is not None
++        if has_scheduler:
++            prepare_args.append(self.lr_scheduler)
++
++        prepared = self.accelerator.prepare(*prepare_args)
++        if not isinstance(prepared, tuple):
++            prepared = (prepared,)
++
++        set_prepared_model(prepared[0])
++        self.modules_being_trained.append(prepared[0])
++        self.optimizer = prepared[1]
++        if has_scheduler:
++            self.lr_scheduler = prepared[2]
++
++        if self.data_loader is not None:
++            self.data_loader = ShardedDataLoader(
++                self.data_loader,
++                process_index=self.accelerator.process_index,
++                num_processes=self.accelerator.num_processes,
++            )
++        if self.data_loader_reg is not None:
++            self.data_loader_reg = ShardedDataLoader(
++                self.data_loader_reg,
++                process_index=self.accelerator.process_index,
++                num_processes=self.accelerator.num_processes,
++            )
++
++    def backward_loss(self, loss):
++        accumulation_steps = max(1, self.current_gradient_accumulation)
++        loss = loss / accumulation_steps
++        if loss.dim() != 0:
++            # deepspeed's engine.backward only accepts a 0-dim tensor, and the
++            # trainer hands us a (1,) shaped one. same value, same gradient.
++            loss = loss.mean()
++        self.accelerator.backward(loss)
+             
+ 
+     def ensure_params_requires_grad(self, force=False):
+@@ -1616,11 +1755,21 @@ class BaseSDTrainProcess(BaseTrainProcess):
+             dtype=self.train_config.dtype,
+             custom_pipeline=self.custom_pipeline,
+             noise_scheduler=sampler,
++            defer_text_encoder_load=(
++                self._accelerator_uses_deepspeed()
++                and self.is_caching_text_embeddings
++                and not self.train_config.train_text_encoder
++                and not self.accelerator.is_main_process
++            ),
+         )
+         
+         self.hook_after_sd_init_before_load()
+         # run base sd process run
+         self.sd.load_model()
++
++        if getattr(self.sd, 'is_rgba_vae', False):
++            for dataset_config in self.dataset_configs:
++                dataset_config.rgba = True
+         
+         self.sd.add_after_sample_image_hook(self.sample_step_hook)
+ 
+@@ -1978,7 +2127,15 @@ class BaseSDTrainProcess(BaseTrainProcess):
+         
+         # esure params require grad
+         self.ensure_params_requires_grad(force=True)
+-        optimizer = get_optimizer(self.params, optimizer_type, learning_rate=self.train_config.lr,
++        # hand the optimizer its own group dicts. torch.optim mutates the dicts it is
++        # given in place, and deepspeed zero3 goes further and swaps their 'params'
++        # for its flat partitions - which would leave self.params empty and silently
++        # turn ensure_params_requires_grad into a no-op.
++        optimizer_param_groups = [
++            {**group, 'params': list(group['params'])} if isinstance(group, dict) else group
++            for group in self.params
++        ]
++        optimizer = get_optimizer(optimizer_param_groups, optimizer_type, learning_rate=self.train_config.lr,
+                                   optimizer_params=self.train_config.optimizer_params)
+         self.optimizer = optimizer
+         
+@@ -2052,6 +2209,7 @@ class BaseSDTrainProcess(BaseTrainProcess):
+         self.last_save_step = self.step_num
+         ### HOOK ###
+         self.hook_before_train_loop()
++        optimizer = self.optimizer
+ 
+         # compile the model if needed (must be after LoRA/adapter injection AND accelerator.prepare)
+         if self.model_config.compile:
+@@ -2402,8 +2560,11 @@ class BaseSDTrainProcess(BaseTrainProcess):
+             self.sample(self.step_num)
+             self.logger.commit(step=self.step_num)
+         print_acc("")
++        # every rank has to enter save(): under zero3 it starts by consolidating the
++        # sharded weights, which is a collective. save() guards the actual write on
++        # the main process itself, exactly like the in-loop save does.
++        self.save()
+         if self.accelerator.is_main_process:
+-            self.save()
+             self.logger.finish()
+         self.accelerator.end_training()
+ 
+diff --git a/run.py b/run.py
+index c717c55..fbadcb4 100644
+--- a/run.py
++++ b/run.py
+@@ -58,6 +58,15 @@ def print_end_message(jobs_completed, jobs_failed):
+     print_acc("========================================")
+ 
+ 
++def run_on_error(job, error):
++    if job is None:
++        return
++    try:
++        job.process[0].on_error(error)
++    except Exception as e2:
++        print_acc(f"Error running on_error: {e2}")
++
++
+ def main():
+     parser = argparse.ArgumentParser()
+ 
+@@ -106,6 +115,7 @@ def main():
+         print_acc(f"Running {len(config_file_list)} job{'' if len(config_file_list) == 1 else 's'}")
+ 
+     for config_file in config_file_list:
++        job = None
+         try:
+             job = get_job(config_file, args.name)
+             job.run()
+@@ -114,18 +124,12 @@ def main():
+         except Exception as e:
+             print_acc(f"Error running job: {e}")
+             jobs_failed += 1
+-            try:
+-                job.process[0].on_error(e)
+-            except Exception as e2:
+-                print_acc(f"Error running on_error: {e2}")
++            run_on_error(job, e)
+             if not args.recover:
+                 print_end_message(jobs_completed, jobs_failed)
+                 raise e
+         except KeyboardInterrupt as e:
+-            try:
+-                job.process[0].on_error(e)
+-            except Exception as e2:
+-                print_acc(f"Error running on_error: {e2}")
++            run_on_error(job, e)
+             if not args.recover:
+                 print_end_message(jobs_completed, jobs_failed)
+                 raise e
+diff --git a/toolkit/accelerator.py b/toolkit/accelerator.py
+index 0736f01..27b9b1b 100644
+--- a/toolkit/accelerator.py
++++ b/toolkit/accelerator.py
+@@ -1,9 +1,41 @@
++from contextlib import contextmanager, nullcontext
++
+ from accelerate import Accelerator
+ from diffusers.utils.torch_utils import is_compiled_module
+ 
+ global_accelerator = None
+ 
+ 
++@contextmanager
++def no_zero3_init():
++    """Load a frozen model without deepspeed zero3 sharding it across ranks.
++
++    transformers wraps `from_pretrained` in `deepspeed.zero.Init` whenever
++    `is_deepspeed_zero3_enabled()` is true, which partitions the new model's
++    weights. That is wrong for anything we only run inference on (the text
++    encoder here): the shards would need a gather on every forward, and when
++    only some ranks load it - as with a deferred text encoder - the partitioning
++    collective deadlocks the ones that did.
++
++    Accelerate's own `zero3_init_context_manager` cannot turn this off, because
++    `set_deepspeed_weakref` installs the HfDeepSpeedConfig regardless of
++    `zero3_init_flag`, so we clear the weakref it keys off of directly.
++    """
++    try:
++        from transformers.integrations import deepspeed as td
++    except Exception:
++        with nullcontext():
++            yield
++        return
++
++    previous = td._hf_deepspeed_config_weak_ref
++    td._hf_deepspeed_config_weak_ref = None
++    try:
++        yield
++    finally:
++        td._hf_deepspeed_config_weak_ref = previous
++
++
+ def get_accelerator() -> Accelerator:
+     global global_accelerator
+     if global_accelerator is None:
+diff --git a/toolkit/config_modules.py b/toolkit/config_modules.py
+index b2261c5..7378efb 100644
+--- a/toolkit/config_modules.py
++++ b/toolkit/config_modules.py
+@@ -500,7 +500,27 @@ class TrainConfig:
+         self.correct_pred_norm_multiplier = kwargs.get('correct_pred_norm_multiplier', 1.0)
+ 
+         self.loss_type = kwargs.get('loss_type', 'mse') # mse, mae, wavelet, pixelspace, mean_flow, pseudo_huber
+-        
++
++        # Concentrates the loss on the edges of the target. A wide, low amplitude
++        # ramp at an object boundary (the semi transparent "stroke" an extraction
++        # or matting model settles into) is a tiny error spread over many latent
++        # cells, so a flat loss barely sees it. This weights the boundary band
++        # instead. 0 disables, 2.0-4.0 is a reasonable range.
++        self.edge_loss_multiplier = kwargs.get('edge_loss_multiplier', 0.0)
++        # how far outward, in latent cells, to spread the edge weight. The halo
++        # sits just outside the silhouette, so the weighted band has to be wider
++        # than the edge itself to cover it.
++        self.edge_loss_dilate = kwargs.get('edge_loss_dilate', 2)
++        # alpha = weight only the transparency boundary (rgba vae targets),
++        # luma = weight all image detail, auto = alpha when the target is rgba
++        self.edge_loss_source = kwargs.get('edge_loss_source', 'auto')  # auto, alpha, luma
++
++        # Matches the spatial gradients of the reconstructed x0 against the
++        # target's. Blur hides from mse, which spreads its error thin, but not
++        # from a gradient term: a soft ramp has a measurably smaller derivative
++        # than the step it approximates. 0 disables, 0.25-1.0 is reasonable.
++        self.sharpness_loss_multiplier = kwargs.get('sharpness_loss_multiplier', 0.0)
++
+         # do the loss on a timestep to 0 prediction
+         self.t0_loss_target = kwargs.get('t0_loss_target', False)
+ 
+@@ -933,6 +953,7 @@ class DatasetConfig:
+         # instead of cropping ot match image, it will serve the full size control image (clip images ie for ip adapters)
+         self.full_size_control_images: bool = kwargs.get('full_size_control_images', True)
+         self.alpha_mask: bool = kwargs.get('alpha_mask', False)  # if true, will use alpha channel as mask
++        self.rgba: bool = kwargs.get('rgba', False)  # if true, load images as RGBA for a 4-channel VAE
+         self.mask_path: str = kwargs.get('mask_path',
+                                          None)  # focus mask (black and white. White has higher loss than black)
+         self.unconditional_path: str = kwargs.get('unconditional_path',
+@@ -1221,6 +1242,8 @@ class GenerateImageConfig:
+                 add_album_artwork(audio_path)
+         else:
+             # TODO save image gen header info for A1111 and us, our seeds probably wont match
++            if hasattr(image, 'mode') and image.mode == 'RGBA' and self.output_ext in ('jpg', 'jpeg'):
++                self.output_ext = 'png'
+             image.save(self.get_image_path(count, max_count))
+             # do prompt file
+             if self.add_prompt_file:
+diff --git a/toolkit/dataloader_mixins.py b/toolkit/dataloader_mixins.py
+index ffd2f86..877ee4d 100644
+--- a/toolkit/dataloader_mixins.py
++++ b/toolkit/dataloader_mixins.py
+@@ -5,6 +5,7 @@ import json
+ import math
+ import os
+ import random
++import shutil
+ from collections import OrderedDict
+ from typing import TYPE_CHECKING, List, Dict, Union
+ import traceback
+@@ -40,6 +41,35 @@ if TYPE_CHECKING:
+     from toolkit.data_transfer_object.data_loader import FileItemDTO
+     from toolkit.stable_diffusion_model import StableDiffusion
+ 
++
++def alpha_bleed(img: Image.Image, iterations: int = 16) -> Image.Image:
++    """Bleed opaque RGB colors into transparent pixels to reduce edge fringing."""
++    arr = np.array(img)
++    rgb = arr[:, :, :3].astype(np.float32)
++    alpha = arr[:, :, 3].astype(np.float32)
++
++    filled = (alpha > 0).astype(np.float32)
++    kernel = np.ones((3, 3), dtype=np.float32)
++
++    for _ in range(iterations):
++        weighted_r = cv2.filter2D(rgb[:, :, 0] * filled, -1, kernel)
++        weighted_g = cv2.filter2D(rgb[:, :, 1] * filled, -1, kernel)
++        weighted_b = cv2.filter2D(rgb[:, :, 2] * filled, -1, kernel)
++        neighbor_count = cv2.filter2D(filled, -1, kernel)
++
++        expand_mask = (filled == 0) & (neighbor_count > 0)
++        if not np.any(expand_mask):
++            break
++
++        rgb[expand_mask, 0] = weighted_r[expand_mask] / neighbor_count[expand_mask]
++        rgb[expand_mask, 1] = weighted_g[expand_mask] / neighbor_count[expand_mask]
++        rgb[expand_mask, 2] = weighted_b[expand_mask] / neighbor_count[expand_mask]
++        filled[expand_mask] = 1.0
++
++    arr[:, :, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
++    return Image.fromarray(arr, mode="RGBA")
++
++
+ accelerator = get_accelerator()
+ 
+ # def get_associated_caption_from_img_path(img_path):
+@@ -820,7 +850,11 @@ class ImageProcessingDTOMixin:
+             np_img = np_img[:, :, :3]
+             img = Image.fromarray(np_img)
+ 
+-        img = img.convert('RGB')
++        if self.dataset_config.rgba:
++            img = img.convert('RGBA')
++            img = alpha_bleed(img)
++        else:
++            img = img.convert('RGB')
+         w, h = img.size
+         if w > h and self.scale_to_width < self.scale_to_height:
+             # throw error, they should match
+@@ -1033,7 +1067,10 @@ class ControlFileItemDTOMixin:
+                 img = Image.open(control_path)
+                 img = exif_transpose(img)
+ 
+-                if img.mode in ("RGBA", "LA"):
++                if self.dataset_config.rgba:
++                    img = img.convert("RGBA")
++                    img = alpha_bleed(img)
++                elif img.mode in ("RGBA", "LA"):
+                     # Create a background with the specified transparent color
+                     transparent_color = tuple(self.dataset_config.control_transparent_color)
+                     background = Image.new("RGB", img.size, transparent_color)
+@@ -2053,12 +2090,51 @@ class TextEmbeddingCachingMixin:
+         self.is_caching_text_embeddings = self.dataset_config.cache_text_embeddings
+ 
+     def cache_text_embeddings(self: 'AiToolkitDataset'):
++        sentinel_path = os.path.join(self.dataset_path, '_te_complete.json')
++
+         with accelerator.main_process_first():
++            def _mark_cached_if_all_expected_files_exist() -> bool:
++                for file_item in self.file_list:
++                    if not os.path.exists(file_item.get_text_embedding_path(recalculate=True)):
++                        return False
++                print_acc(f"Text embeddings already fully cached for {self.dataset_path}, skipping")
++                for file_item in self.file_list:
++                    file_item.is_text_embedding_cached = True
++                return True
++
++            # Fast path 1: sentinel file from a previous complete run. The
++            # sentinel is only a hint; validate per-item paths because caption
++            # or model hash changes produce different cache filenames.
++            if os.path.exists(sentinel_path):
++                try:
++                    with open(sentinel_path, 'r') as _f:
++                        _sentinel = json.load(_f)
++                    if _sentinel.get('count') == len(self.file_list):
++                        if _mark_cached_if_all_expected_files_exist():
++                            return
++                except Exception:
++                    pass  # corrupt sentinel — fall through
++
++            # Fast path 2: exact cache files already exist for this dataset.
++            if _mark_cached_if_all_expected_files_exist():
++                try:
++                    with open(sentinel_path, 'w') as _f:
++                        json.dump({'count': len(self.file_list)}, _f)
++                except Exception:
++                    pass
++                return
++
+             print_acc(f"Caching text_embeddings for {self.dataset_path}")
+             print_acc(" - Saving text embeddings to disk")
+-            
++
+             did_move = False
+ 
++            # Identical cache keys produce identical embeddings, so encode each
++            # distinct key once and copy the result for the rest. Datasets that
++            # rely on a default_caption are entirely one key, which otherwise
++            # means re-encoding the same string once per item.
++            encoded_by_key: Dict[str, str] = {}
++
+             # use tqdm to show progress
+             i = 0
+             for file_item in tqdm(self.file_list, desc='Caching text embeddings to disk'):
+@@ -2067,11 +2143,22 @@ class TextEmbeddingCachingMixin:
+                 text_embedding_path = file_item.get_text_embedding_path(recalculate=True)
+                 # only process if not saved to disk
+                 if not os.path.exists(text_embedding_path):
++                    cache_key = json.dumps(
++                        file_item.get_text_embedding_info_dict(), sort_keys=True
++                    )
++                    prior_path = encoded_by_key.get(cache_key)
++                    if prior_path is not None and os.path.exists(prior_path):
++                        os.makedirs(os.path.dirname(text_embedding_path), exist_ok=True)
++                        shutil.copyfile(prior_path, text_embedding_path)
++                        file_item.is_text_embedding_cached = True
++                        i += 1
++                        continue
++
+                     # load if not loaded
+                     if not did_move:
+                         self.sd.set_device_state_preset('cache_text_encoder')
+                         did_move = True
+-                        
++
+                     if file_item.encode_control_in_text_embeddings:
+                         if file_item.control_path is None:
+                             raise Exception(f"Could not find a control image for {file_item.path} which is needed for this model")
+@@ -2093,7 +2180,7 @@ class TextEmbeddingCachingMixin:
+                             except Exception as e:
+                                 print_acc(f"Error: {e}")
+                                 print_acc(f"Error loading control image: {control_path_list[i]}")
+-                        
++
+                         if len(ctrl_img_list) == 0:
+                             ctrl_img = None
+                         elif not self.sd.has_multiple_control_images:
+@@ -2105,9 +2192,17 @@ class TextEmbeddingCachingMixin:
+                         prompt_embeds: PromptEmbeds = self.sd.encode_prompt(file_item.caption)
+                     # save it
+                     prompt_embeds.save(text_embedding_path)
++                    encoded_by_key[cache_key] = text_embedding_path
+                     del prompt_embeds
+                 file_item.is_text_embedding_cached = True
+                 i += 1
++
++            # Write sentinel so future runs skip re-scanning all captions
++            try:
++                with open(sentinel_path, 'w') as _f:
++                    json.dump({'count': len(self.file_list)}, _f)
++            except Exception:
++                pass
+             # restore device state
+             # if did_move:
+             #     self.sd.restore_device_state()
+diff --git a/toolkit/extension.py b/toolkit/extension.py
+index f4f10e9..a1d35f8 100644
+--- a/toolkit/extension.py
++++ b/toolkit/extension.py
+@@ -53,5 +53,19 @@ def get_all_extensions_process_dict():
+     all_extensions = get_all_extensions()
+     process_dict = {}
+     for extension in all_extensions:
+-        process_dict[extension.uid] = extension.get_process()
++        try:
++            process_dict[extension.uid] = extension.get_process()
++        except ImportError as import_error:
++            process_dict[extension.uid] = _get_unavailable_process(extension, import_error)
+     return process_dict
++
++
++def _get_unavailable_process(extension, import_error):
++    class UnavailableExtensionProcess:
++        def __init__(self, *args, **kwargs):
++            raise ImportError(
++                f'Extension "{extension.uid}" could not be loaded. '
++                "Install its missing dependencies or run `pip install -r requirements.txt`."
++            ) from import_error
++
++    return UnavailableExtensionProcess
+diff --git a/toolkit/optimizer.py b/toolkit/optimizer.py
+index 0357f79..bbb1960 100644
+--- a/toolkit/optimizer.py
++++ b/toolkit/optimizer.py
+@@ -73,6 +73,14 @@ def get_optimizer(
+             return bitsandbytes.optim.Lion8bit(params, lr=learning_rate, **optimizer_params)
+         else:
+             raise ValueError(f'Unknown optimizer type {optimizer_type}')
++    elif lower_type == 'deepspeed_cpu_adam':
++        # fused AVX AdamW that runs on the cpu. only useful with deepspeed zero
++        # offload_optimizer, where a cuda optimizer would be fed cpu tensors.
++        from deepspeed.ops.adam import DeepSpeedCPUAdam
++
++        optimizer = DeepSpeedCPUAdam(
++            params, lr=float(learning_rate), eps=1e-6, adamw_mode=True, **optimizer_params
++        )
+     elif lower_type == 'adam':
+         optimizer = torch.optim.Adam(params, lr=float(learning_rate), eps=1e-6, **optimizer_params)
+     elif lower_type == 'adamw':
+diff --git a/toolkit/print.py b/toolkit/print.py
+index 4d26d24..e177765 100644
+--- a/toolkit/print.py
++++ b/toolkit/print.py
+@@ -25,6 +25,14 @@ class Logger:
+     def isatty(self):
+         return self.terminal.isatty()
+ 
++    def fileno(self):
++        # deepspeed probes for optional ops by compiling a test program and
++        # silencing it with os.dup(sys.stderr.fileno()). Without this the probe
++        # raises, gets swallowed, and the op is reported as incompatible - which
++        # is why jobs launched from the UI (the only ones passing --log) could
++        # not load async_io while the same config ran fine from a shell.
++        return self.terminal.fileno()
++
+ 
+ def setup_log_to_file(filename):
+     if get_accelerator().is_local_main_process:
+diff --git a/ui/cron/actions/processQueue.ts b/ui/cron/actions/processQueue.ts
+index 175f613..0ca654c 100644
+--- a/ui/cron/actions/processQueue.ts
++++ b/ui/cron/actions/processQueue.ts
+@@ -3,7 +3,78 @@ import prisma from '../prisma';
+ import { Job, Queue } from '@prisma/client';
+ import startJob from './startJob';
+ 
++const promoteScheduledJobs = async () => {
++  const now = new Date();
++  const due = await prisma.job.findMany({
++    where: {
++      status: 'scheduled',
++      scheduled_at: { lte: now },
++    },
++  });
++
++  for (const job of due) {
++    const highestQueuePosition = await prisma.job.aggregate({
++      _max: { queue_position: true },
++    });
++    const newQueuePosition = (highestQueuePosition._max.queue_position || 0) + 1000;
++
++    // ensure a queue entry exists for the GPU
++    const queue = await prisma.queue.findFirst({ where: { gpu_ids: job.gpu_ids } });
++    if (!queue) {
++      await prisma.queue.create({ data: { gpu_ids: job.gpu_ids, is_running: false } });
++    }
++
++    await prisma.job.update({
++      where: { id: job.id },
++      data: {
++        status: 'queued',
++        stop: false,
++        return_to_queue: false,
++        queue_position: newQueuePosition,
++        info: 'Scheduled time reached — queued',
++      },
++    });
++    console.log(`Scheduled job ${job.id} promoted to queued`);
++  }
++};
++
++const parseGPUIds = (gpuIds: string | null | undefined): Set<string> => {
++  return new Set(
++    `${gpuIds ?? ''}`
++      .split(',')
++      .map(gpuId => gpuId.trim())
++      .filter(Boolean),
++  );
++};
++
++const gpuIdsOverlap = (left: string | null | undefined, right: string | null | undefined): boolean => {
++  const leftIds = parseGPUIds(left);
++  const rightIds = parseGPUIds(right);
++  for (const gpuId of leftIds) {
++    if (rightIds.has(gpuId)) {
++      return true;
++    }
++  }
++  return false;
++};
++
++const gpuIdsEqual = (left: string | null | undefined, right: string | null | undefined): boolean => {
++  const leftIds = parseGPUIds(left);
++  const rightIds = parseGPUIds(right);
++  if (leftIds.size !== rightIds.size) {
++    return false;
++  }
++  for (const gpuId of leftIds) {
++    if (!rightIds.has(gpuId)) {
++      return false;
++    }
++  }
++  return true;
++};
++
+ export default async function processQueue() {
++  await promoteScheduledJobs();
++
+   const queues: Queue[] = await prisma.queue.findMany({
+     orderBy: {
+       id: 'asc',
+@@ -16,15 +87,15 @@ export default async function processQueue() {
+       const runningJobs: Job[] = await prisma.job.findMany({
+         where: {
+           status: 'running',
+-          gpu_ids: queue.gpu_ids,
+         },
+       });
+ 
+-      for (const job of runningJobs) {
++      for (const job of runningJobs.filter(job => gpuIdsEqual(job.gpu_ids, queue.gpu_ids))) {
+         console.log(`Stopping job ${job.id} on GPU(s) ${job.gpu_ids}`);
+         await prisma.job.update({
+           where: { id: job.id },
+           data: {
++            status: 'stopping',
+             return_to_queue: true,
+             info: 'Stopping job...',
+           },
+@@ -33,12 +104,12 @@ export default async function processQueue() {
+     }
+     if (queue.is_running) {
+       // first see if one is already running, status of running or stopping
+-      const runningJob: Job | null = await prisma.job.findFirst({
++      const runningJobs: Job[] = await prisma.job.findMany({
+         where: {
+           status: { in: ['running', 'stopping'] },
+-          gpu_ids: queue.gpu_ids,
+         },
+       });
++      const runningJob = runningJobs.find(job => gpuIdsOverlap(job.gpu_ids, queue.gpu_ids));
+ 
+       if (runningJob) {
+         // already running, nothing to do
+diff --git a/ui/cron/actions/startJob.ts b/ui/cron/actions/startJob.ts
+index a6e3983..c84fbc1 100644
+--- a/ui/cron/actions/startJob.ts
++++ b/ui/cron/actions/startJob.ts
+@@ -47,6 +47,8 @@ const startAndWatchJob = (job: Job) => {
+ 
+     // update the config dataset path
+     const jobConfig = JSON.parse(job.job_config);
++    const launchConfig = jobConfig?.config?.launch;
++    const useDeepSpeedZero3 = launchConfig?.use_deepspeed_zero3 === true;
+     jobConfig.config.process[0].sqlite_db_path = path.join(TOOLKIT_ROOT, 'aitk_db.db');
+ 
+     // write the config file
+@@ -81,10 +83,57 @@ const startAndWatchJob = (job: Job) => {
+       return;
+     }
+ 
++    const visibleGpuIds = `${job.gpu_ids ?? ''}`;
++    const selectedGPUIds = visibleGpuIds
++      .split(',')
++      .map(id => id.trim())
++      .filter(Boolean);
++
++    if (useDeepSpeedZero3) {
++      if (isWindows) {
++        await prisma.job.update({
++          where: { id: jobID },
++          data: {
++            status: 'error',
++            info: 'Error launching job: DeepSpeed ZeRO-3 UI launch is not supported on Windows',
++          },
++        });
++        return;
++      }
++
++      if (selectedGPUIds.length < 2) {
++        await prisma.job.update({
++          where: { id: jobID },
++          data: {
++            status: 'error',
++            info: 'Error launching job: DeepSpeed ZeRO-3 requires at least two selected GPUs',
++          },
++        });
++        return;
++      }
++
++      const configuredAcceleratePath =
++        launchConfig?.accelerate_config || 'config/accelerate/flux2_klein9b_zero3_2gpu.yaml';
++      const accelerateConfigPath = path.isAbsolute(configuredAcceleratePath)
++        ? configuredAcceleratePath
++        : path.join(TOOLKIT_ROOT, configuredAcceleratePath);
++
++      if (!fs.existsSync(accelerateConfigPath)) {
++        await prisma.job.update({
++          where: { id: jobID },
++          data: {
++            status: 'error',
++            info: `Error launching job: accelerate config not found at ${accelerateConfigPath}`,
++          },
++        });
++        return;
++      }
++    }
++
+     const additionalEnv: any = {
+       AITK_JOB_ID: jobID,
+       CUDA_DEVICE_ORDER: 'PCI_BUS_ID',
+-      CUDA_VISIBLE_DEVICES: `${job.gpu_ids}`,
++      CUDA_VISIBLE_DEVICES: visibleGpuIds,
+       IS_AI_TOOLKIT_UI: '1',
+     };
+ 
+@@ -94,15 +143,46 @@ const startAndWatchJob = (job: Job) => {
+       additionalEnv.HF_TOKEN = hfToken;
+     }
+ 
+-    // Add the --log argument to the command
+-    const args = [runFilePath, configPath, '--log', logPath];
++    const numVisibleGpus = selectedGPUIds.length;
++    const useAccelerateLaunch = numVisibleGpus > 1;
++
++    const command = pythonPath;
++    const configuredAcceleratePath =
++      launchConfig?.accelerate_config || 'config/accelerate/flux2_klein9b_zero3_2gpu.yaml';
++    const accelerateConfigPath = path.isAbsolute(configuredAcceleratePath)
++      ? configuredAcceleratePath
++      : path.join(TOOLKIT_ROOT, configuredAcceleratePath);
++    const args = useDeepSpeedZero3
++      ? [
++          '-m',
++          'accelerate.commands.launch',
++          '--config_file',
++          accelerateConfigPath,
++          runFilePath,
++          configPath,
++          '--log',
++          logPath,
++        ]
++      : useAccelerateLaunch
++      ? [
++          '-m',
++          'accelerate.commands.launch',
++          '--multi_gpu',
++          '--num_processes',
++          String(numVisibleGpus),
++          runFilePath,
++          configPath,
++          '--log',
++          logPath,
++        ]
++      : [runFilePath, configPath, '--log', logPath];
+ 
+     try {
+       let subprocess;
+ 
+       if (isWindows) {
+         // Spawn Python directly on Windows so the process can survive parent exit
+-        subprocess = spawn(pythonPath, args, {
++        subprocess = spawn(command, args, {
+           env: {
+             ...process.env,
+             ...additionalEnv,
+@@ -114,7 +194,7 @@ const startAndWatchJob = (job: Job) => {
+         });
+       } else {
+         // For non-Windows platforms, fully detach and ignore stdio so it survives daemon-like
+-        subprocess = spawn(pythonPath, args, {
++        subprocess = spawn(command, args, {
+           detached: true,
+           stdio: 'ignore',
+           env: {
+@@ -178,6 +258,7 @@ export default async function startJob(jobID: string) {
+     data: {
+       status: 'running',
+       stop: false,
++      return_to_queue: false,
+       info: 'Starting job...',
+     },
+   });
+diff --git a/ui/cron/worker.ts b/ui/cron/worker.ts
+index dd1c275..6d1c580 100644
+--- a/ui/cron/worker.ts
++++ b/ui/cron/worker.ts
+@@ -1,4 +1,8 @@
+ import processQueue from './actions/processQueue';
++import prisma from './prisma';
++
++const HEARTBEAT_KEY = 'worker_heartbeat';
++
+ class CronWorker {
+   interval: number;
+   is_running: boolean;
+@@ -16,7 +20,6 @@ class CronWorker {
+     }
+     this.is_running = true;
+     try {
+-      // Loop logic here
+       await this.loop();
+     } catch (error) {
+       console.error('Error in cron worker loop:', error);
+@@ -26,6 +29,11 @@ class CronWorker {
+ 
+   async loop() {
+     await processQueue();
++    await prisma.settings.upsert({
++      where: { key: HEARTBEAT_KEY },
++      update: { value: new Date().toISOString() },
++      create: { key: HEARTBEAT_KEY, value: new Date().toISOString() },
++    });
+   }
+ }
+ 
+diff --git a/ui/package.json b/ui/package.json
+index e1a828b..fbe751f 100644
+--- a/ui/package.json
++++ b/ui/package.json
+@@ -3,7 +3,7 @@
+   "version": "0.1.0",
+   "private": true,
+   "scripts": {
+-    "dev": "concurrently -k -n WORKER,UI \"ts-node-dev --project tsconfig.worker.json --respawn --watch cron --transpile-only cron/worker.ts\" \"next dev --turbopack\"",
++    "dev": "concurrently -k -n WORKER,UI \"ts-node-dev --project tsconfig.worker.json --respawn --watch cron --transpile-only cron/worker.ts\" \"next dev --turbopack --port 3001\"",
+     "build": "tsc -p tsconfig.worker.json && next build",
+     "start": "concurrently --restart-tries -1 --restart-after 1000 -n WORKER,UI \"node dist/cron/worker.js\" \"next start --port 8675\"",
+     "build_and_start": "npm install && npm run update_db && npm run build && npm run start",
+diff --git a/ui/prisma/schema.prisma b/ui/prisma/schema.prisma
+index f183e58..abb675d 100644
+--- a/ui/prisma/schema.prisma
++++ b/ui/prisma/schema.prisma
+@@ -22,26 +22,28 @@ model Queue {
+ }
+ 
+ model Job {
+-  id              String   @id @default(uuid())
+-  name            String   @unique
++  id              String    @id @default(uuid())
++  name            String    @unique
+   gpu_ids         String
+   job_config      String // JSON string
+-  created_at      DateTime @default(now())
+-  updated_at      DateTime @updatedAt
+-  status          String   @default("stopped")
+-  stop            Boolean  @default(false)
+-  return_to_queue Boolean  @default(false) // same as stop, but will be set to 'queued' when stopped
+-  step            Int      @default(0)
+-  info            String   @default("")
+-  speed_string    String   @default("")
+-  queue_position  Int      @default(0)
++  created_at      DateTime  @default(now())
++  updated_at      DateTime  @updatedAt
++  status          String    @default("stopped")
++  stop            Boolean   @default(false)
++  return_to_queue Boolean   @default(false) // same as stop, but will be set to 'queued' when stopped
++  step            Int       @default(0)
++  info            String    @default("")
++  speed_string    String    @default("")
++  queue_position  Int       @default(0)
+   pid             Int?
+-  job_type        String   @default("train") // 'train', 'caption'
++  job_type        String    @default("train") // 'train', 'caption'
+   job_ref         String? // can be used for anything for special jobs, like dataset path for caption jobs
++  scheduled_at    DateTime? // if set, job will be queued at this time
+ 
+   @@index([status])
+   @@index([gpu_ids])
+   @@index([job_type])
+   @@index([job_ref])
++  @@index([scheduled_at])
+ 
+ }
+diff --git a/ui/src/app/api/jobs/route.ts b/ui/src/app/api/jobs/route.ts
+index 11dd952..5d8037d 100644
+--- a/ui/src/app/api/jobs/route.ts
++++ b/ui/src/app/api/jobs/route.ts
+@@ -41,6 +41,7 @@ export async function POST(request: Request) {
+     const body = await request.json();
+     const { id, name, job_config } = body;
+     let gpu_ids: string = body.gpu_ids;
++    const scheduled_at: string | null = body.scheduled_at ?? null;
+ 
+     if (isMac()) {
+       gpu_ids = "mps";
+@@ -57,14 +58,22 @@ export async function POST(request: Request) {
+ 
+     if (id) {
+       // Update existing training
++      const updateData: any = {
++        name,
++        gpu_ids,
++        job_config: JSON.stringify(job_config),
++        ...extra,
++      };
++      if (scheduled_at !== null) {
++        updateData.scheduled_at = new Date(scheduled_at);
++        updateData.status = 'scheduled';
++      } else if ('scheduled_at' in body) {
++        // explicitly clearing the schedule
++        updateData.scheduled_at = null;
++      }
+       const training = await prisma.job.update({
+         where: { id },
+-        data: {
+-          name,
+-          gpu_ids,
+-          job_config: JSON.stringify(job_config),
+-          ...extra,
+-        },
++        data: updateData,
+       });
+       return NextResponse.json(training);
+     } else {
+@@ -76,16 +85,21 @@ export async function POST(request: Request) {
+       });
+       const newQueuePosition = (highestQueuePosition._max.queue_position || 0) + 1000;
+ 
++      const createData: any = {
++        name,
++        gpu_ids,
++        job_config: JSON.stringify(job_config),
++        queue_position: newQueuePosition,
++        ...extra,
++      };
++
++      if (scheduled_at) {
++        createData.scheduled_at = new Date(scheduled_at);
++        createData.status = 'scheduled';
++      }
++
+       // Create new training
+-      const training = await prisma.job.create({
+-        data: {
+-          name,
+-          gpu_ids,
+-          job_config: JSON.stringify(job_config),
+-          queue_position: newQueuePosition,
+-          ...extra,
+-        },
+-      });
++      const training = await prisma.job.create({ data: createData });
+       return NextResponse.json(training);
+     }
+   } catch (error: any) {
+diff --git a/ui/src/app/globals.css b/ui/src/app/globals.css
+index 7779861..0f4f753 100644
+--- a/ui/src/app/globals.css
++++ b/ui/src/app/globals.css
+@@ -37,6 +37,23 @@
+   --gray-100: 245 245 245;
+ }
+ 
++/* Bearded Theme: Black & Amethyst */
++.theme-bearded {
++  --background: #0a0a12;
++  --foreground: #f2e9ff;
++
++  --gray-950: 10 8 18;
++  --gray-900: 20 16 32;
++  --gray-800: 32 24 48;
++  --gray-700: 52 40 74;
++  --gray-600: 78 60 108;
++  --gray-500: 114 88 156;
++  --gray-400: 154 120 196;
++  --gray-300: 188 164 220;
++  --gray-200: 220 204 238;
++  --gray-100: 242 233 255;
++}
++
+ body {
+   color: var(--foreground);
+   background: var(--background);
+diff --git a/ui/src/app/jobs/new/SimpleJob.tsx b/ui/src/app/jobs/new/SimpleJob.tsx
+index 1f9015f..affed10 100644
+--- a/ui/src/app/jobs/new/SimpleJob.tsx
++++ b/ui/src/app/jobs/new/SimpleJob.tsx
+@@ -29,6 +29,7 @@ import { FlipHorizontal2, FlipVertical2 } from 'lucide-react';
+ import { handleModelArchChange } from './utils';
+ import { IoFlaskSharp } from 'react-icons/io5';
+ import { isMac } from '@/helpers/basic';
++import { getFirstTwoGpuIDs, getGpuSelectOptions } from '@/helpers/gpuOptions';
+ 
+ type Props = {
+   jobConfig: JobConfig;
+@@ -44,6 +45,7 @@ type Props = {
+ };
+ 
+ const isDev = process.env.NODE_ENV === 'development';
++const zero3AccelerateConfigPath = 'config/accelerate/flux2_klein9b_zero3_2gpu.yaml';
+ 
+ export default function SimpleJob({
+   jobConfig,
+@@ -54,7 +56,6 @@ export default function SimpleJob({
+   gpuIDs,
+   setGpuIDs,
+   gpuList,
+-  datasetOptions,
+   isLoading,
+ }: Props) {
+   const modelArch = useMemo(() => {
+@@ -65,6 +66,52 @@ export default function SimpleJob({
+     return jobTypeOptions.find(j => j.value === jobConfig.config.process[0].type);
+   }, [jobConfig.config.process[0].type]);
+ 
++  const firstTwoGpuIDs = getFirstTwoGpuIDs(gpuList);
++  const supportsDeepSpeedZero3 = modelArch?.additionalSections?.includes('launch.deepspeed_zero3') || false;
++  const useDeepSpeedZero3 = jobConfig.config.launch?.use_deepspeed_zero3 || false;
++
++  const handleDeepSpeedZero3Change = (enabled: boolean) => {
++    setJobConfig(enabled, 'config.launch.use_deepspeed_zero3');
++    setJobConfig(zero3AccelerateConfigPath, 'config.launch.accelerate_config');
++
++    if (!enabled) {
++      return;
++    }
++
++    if (firstTwoGpuIDs) {
++      setGpuIDs(firstTwoGpuIDs);
++    }
++
++    setJobConfig('lora', 'config.process[0].network.type');
++    setJobConfig(16, 'config.process[0].network.linear');
++    setJobConfig(16, 'config.process[0].network.linear_alpha');
++    setJobConfig(true, 'config.process[0].network.transformer_only');
++    setJobConfig('diffusers', 'config.process[0].save.save_format');
++    setJobConfig('bf16', 'config.process[0].save.dtype');
++    setJobConfig(1, 'config.process[0].train.batch_size');
++    setJobConfig(1, 'config.process[0].train.gradient_accumulation');
++    setJobConfig(true, 'config.process[0].train.train_unet');
++    setJobConfig(false, 'config.process[0].train.train_text_encoder');
++    setJobConfig(true, 'config.process[0].train.gradient_checkpointing');
++    setJobConfig('flowmatch', 'config.process[0].train.noise_scheduler');
++    setJobConfig('weighted', 'config.process[0].train.timestep_type');
++    setJobConfig('adamw', 'config.process[0].train.optimizer');
++    setJobConfig(1.0, 'config.process[0].train.max_grad_norm');
++    setJobConfig(false, 'config.process[0].train.unload_text_encoder');
++    setJobConfig(true, 'config.process[0].train.cache_text_embeddings');
++    setJobConfig(false, 'config.process[0].train.ema_config.use_ema');
++    setJobConfig('bf16', 'config.process[0].train.dtype');
++    setJobConfig(true, 'config.process[0].model.low_vram');
++    setJobConfig(true, 'config.process[0].model.layer_offloading');
++    setJobConfig(1.0, 'config.process[0].model.layer_offloading_transformer_percent');
++    setJobConfig(1.0, 'config.process[0].model.layer_offloading_text_encoder_percent');
++
++    jobConfig.config.process[0].datasets.forEach((_, i) => {
++      setJobConfig(true, `config.process[0].datasets[${i}].cache_latents_to_disk`);
++      setJobConfig(true, `config.process[0].datasets[${i}].cache_text_embeddings`);
++    });
++  };
++
+   const disableSections = useMemo(() => {
+     let sections: string[] = [];
+     if (modelArch?.disableSections) {
+@@ -195,6 +242,7 @@ export default function SimpleJob({
+   }, [modelArch]);
+ 
+   const showGPUSelect = !isMac();
++  const gpuSelectOptions = getGpuSelectOptions(gpuList);
+ 
+   let numDatasetCols = 4;
+   let numSampleTopCols = 4;
+@@ -247,7 +295,17 @@ export default function SimpleJob({
+                 value={`${gpuIDs}`}
+                 docKey="gpuids"
+                 onChange={value => setGpuIDs(value)}
+-                options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
++                options={gpuSelectOptions}
++              />
++            )}
++            {supportsDeepSpeedZero3 && (
++              <Checkbox
++                label="DeepSpeed ZeRO-3"
++                checked={useDeepSpeedZero3}
++                onChange={handleDeepSpeedZero3Change}
++                disabled={!firstTwoGpuIDs && !useDeepSpeedZero3}
++                docKey="launch.deepspeed_zero3"
++                className="pt-2"
+               />
+             )}
+             {disableSections.includes('trigger_word') ? null : (
+@@ -304,6 +362,20 @@ export default function SimpleJob({
+                 placeholder=""
+               />
+             )}
++            {modelArch?.additionalSections?.includes('model.vae_path') && (
++              <TextInput
++                label="Custom VAE Path"
++                value={jobConfig.config.process[0].model.vae_path ?? ''}
++                docKey="config.process[0].model.vae_path"
++                onChange={(value: string | undefined) => {
++                  if (value?.trim() === '') {
++                    value = undefined;
++                  }
++                  setJobConfig(value, 'config.process[0].model.vae_path');
++                }}
++                placeholder="Path to a diffusers-format RGBA VAE (optional)"
++              />
++            )}
+             {modelArch?.additionalSections?.includes('model.low_vram') && (
+               <FormGroup label="Options">
+                 <Checkbox
+@@ -864,64 +936,67 @@ export default function SimpleJob({
+                   <h2 className="text-lg font-bold mb-4">Dataset {i + 1}</h2>
+                   <div className={datasetStyleClass}>
+                     <div>
+-                      <SelectInput
++                      <TextInput
+                         label="Target Dataset"
+                         value={dataset.folder_path}
+                         onChange={value => setJobConfig(value, `config.process[0].datasets[${i}].folder_path`)}
+-                        options={datasetOptions}
++                        placeholder="e.g., /content/datasets/dataset1 or datasets/my_dataset"
+                       />
+                       {modelArch?.additionalSections?.includes('datasets.control_path') && (
+-                        <SelectInput
+-                          label="Control Dataset"
++                        <TextInput
++                          label="Control Dataset (optional)"
+                           docKey="datasets.control_path"
+                           value={dataset.control_path ?? ''}
+                           className="pt-2"
+                           onChange={value =>
+-                            setJobConfig(value == '' ? null : value, `config.process[0].datasets[${i}].control_path`)
++                            setJobConfig(
++                              value?.trim() === '' ? null : value,
++                              `config.process[0].datasets[${i}].control_path`,
++                            )
+                           }
+-                          options={[{ value: '', label: <>&nbsp;</> }, ...datasetOptions]}
++                          placeholder="e.g., datasets/control_images (leave empty to skip)"
+                         />
+                       )}
+                       {modelArch?.additionalSections?.includes('datasets.multi_control_paths') && (
+                         <>
+-                          <SelectInput
+-                            label="Control Dataset 1"
++                          <TextInput
++                            label="Control Dataset 1 (optional)"
+                             docKey="datasets.multi_control_paths"
+                             value={dataset.control_path_1 ?? ''}
+                             className="pt-2"
+                             onChange={value =>
+                               setJobConfig(
+-                                value == '' ? null : value,
++                                value?.trim() === '' ? null : value,
+                                 `config.process[0].datasets[${i}].control_path_1`,
+                               )
+                             }
+-                            options={[{ value: '', label: <>&nbsp;</> }, ...datasetOptions]}
++                            placeholder="e.g., datasets/control1"
+                           />
+-                          <SelectInput
+-                            label="Control Dataset 2"
++                          <TextInput
++                            label="Control Dataset 2 (optional)"
+                             docKey="datasets.multi_control_paths"
+                             value={dataset.control_path_2 ?? ''}
+                             className="pt-2"
+                             onChange={value =>
+                               setJobConfig(
+-                                value == '' ? null : value,
++                                value?.trim() === '' ? null : value,
+                                 `config.process[0].datasets[${i}].control_path_2`,
+                               )
+                             }
+-                            options={[{ value: '', label: <>&nbsp;</> }, ...datasetOptions]}
++                            placeholder="e.g., datasets/control2"
+                           />
+-                          <SelectInput
+-                            label="Control Dataset 3"
++                          <TextInput
++                            label="Control Dataset 3 (optional)"
+                             docKey="datasets.multi_control_paths"
+                             value={dataset.control_path_3 ?? ''}
+                             className="pt-2"
+                             onChange={value =>
+                               setJobConfig(
+-                                value == '' ? null : value,
++                                value?.trim() === '' ? null : value,
+                                 `config.process[0].datasets[${i}].control_path_3`,
+                               )
+                             }
+-                            options={[{ value: '', label: <>&nbsp;</> }, ...datasetOptions]}
++                            placeholder="e.g., datasets/control3"
+                           />
+                         </>
+                       )}
+@@ -1101,9 +1176,13 @@ export default function SimpleJob({
+                 type="button"
+                 onClick={() => {
+                   const newDataset = objectCopy(defaultDatasetConfig);
+-                  // automaticallt add the controls for a new dataset
++                  // automatically add the controls for a new dataset
+                   const controls = modelArch?.controls ?? [];
+                   newDataset.controls = controls;
++                  if (useDeepSpeedZero3) {
++                    newDataset.cache_latents_to_disk = true;
++                    newDataset.cache_text_embeddings = true;
++                  }
+                   setJobConfig([...jobConfig.config.process[0].datasets, newDataset], 'config.process[0].datasets');
+                 }}
+                 className="w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+diff --git a/ui/src/app/jobs/new/options.ts b/ui/src/app/jobs/new/options.ts
+index 7238a9c..1a375ea 100644
+--- a/ui/src/app/jobs/new/options.ts
++++ b/ui/src/app/jobs/new/options.ts
+@@ -31,7 +31,9 @@ type AdditionalSections =
+   | 'model.layer_offloading'
+   | 'model.low_vram'
+   | 'model.qie.match_target_res'
+-  | 'model.assistant_lora_path';
++  | 'model.assistant_lora_path'
++  | 'model.vae_path'
++  | 'launch.deepspeed_zero3';
+ 
+ type ModelGroup = 'image' | 'instruction' | 'video' | 'experimental' | 'audio';
+ 
+@@ -589,6 +591,7 @@ export const modelArchs: ModelArch[] = [
+       'model.low_vram',
+       'model.layer_offloading',
+       'model.qie.match_target_res',
++      'model.vae_path',
+     ],
+   },
+   {
+@@ -787,6 +790,8 @@ export const modelArchs: ModelArch[] = [
+         },
+         {},
+       ],
++      'config.launch.use_deepspeed_zero3': [false, undefined],
++      'config.launch.accelerate_config': ['config/accelerate/flux2_klein9b_zero3_2gpu.yaml', undefined],
+     },
+     disableSections: ['network.conv'],
+     additionalSections: [
+@@ -795,6 +800,8 @@ export const modelArchs: ModelArch[] = [
+       'model.low_vram',
+       'model.layer_offloading',
+       'model.qie.match_target_res',
++      'model.vae_path',
++      'launch.deepspeed_zero3',
+     ],
+   },
+   {
+diff --git a/ui/src/app/jobs/new/page.tsx b/ui/src/app/jobs/new/page.tsx
+index 71a616d..9fe2689 100644
+--- a/ui/src/app/jobs/new/page.tsx
++++ b/ui/src/app/jobs/new/page.tsx
+@@ -14,12 +14,13 @@ import useDatasetList from '@/hooks/useDatasetList';
+ import YAML from 'yaml';
+ import path from 'path';
+ import { TopBar, MainContent } from '@/components/layout';
+-import { Button } from '@headlessui/react';
++import { Button, Dialog, DialogPanel, DialogTitle } from '@headlessui/react';
+ import { FaChevronLeft } from 'react-icons/fa';
+ import SimpleJob from './SimpleJob';
+ import AdvancedConfigEditor from '@/components/AdvancedConfigEditor';
+ import ErrorBoundary from '@/components/ErrorBoundary';
+ import { apiClient } from '@/utils/api';
++import { getGpuSelectOptions } from '@/helpers/gpuOptions';
+ 
+ const isDev = process.env.NODE_ENV === 'development';
+ 
+@@ -31,6 +32,7 @@ export default function TrainingForm() {
+   const [gpuIDs, setGpuIDs] = useState<string | null>(null);
+   const { settings, isSettingsLoaded } = useSettings();
+   const { gpuList, isGPUInfoLoaded } = useGPUInfo();
++  const gpuSelectOptions = getGpuSelectOptions(gpuList);
+   const { datasets, status: datasetFetchStatus } = useDatasetList();
+   const [datasetOptions, setDatasetOptions] = useState<{ value: string; label: string }[]>([]);
+   const [showAdvancedView, setShowAdvancedView] = useState(false);
+@@ -38,6 +40,14 @@ export default function TrainingForm() {
+   const [jobConfig, setJobConfig] = useNestedState<JobConfig>(objectCopy(migrateJobConfig(defaultJobConfig)));
+   const [status, setStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+   const fileInputRef = useRef<HTMLInputElement>(null);
++  const [showScheduleModal, setShowScheduleModal] = useState(false);
++  const [scheduleDateTime, setScheduleDateTime] = useState<string>('');
++
++  const getDefaultScheduleDateTime = () => {
++    const d = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
++    d.setSeconds(0, 0);
++    return d.toISOString().slice(0, 16);
++  };
+ 
+   const handleImportConfig = () => {
+     fileInputRef.current?.click();
+@@ -148,17 +158,22 @@ export default function TrainingForm() {
+     }
+   }, [settings, isSettingsLoaded]);
+ 
+-  const saveJob = async () => {
++  const saveJob = async (scheduledAt?: string) => {
+     if (status === 'saving') return;
+     setStatus('saving');
+ 
++    const body: any = {
++      id: runId,
++      name: jobConfig.config.name,
++      gpu_ids: gpuIDs,
++      job_config: jobConfig,
++    };
++    if (scheduledAt) {
++      body.scheduled_at = new Date(scheduledAt).toISOString();
++    }
++
+     apiClient
+-      .post('/api/jobs', {
+-        id: runId,
+-        name: jobConfig.config.name,
+-        gpu_ids: gpuIDs,
+-        job_config: jobConfig,
+-      })
++      .post('/api/jobs', body)
+       .then(res => {
+         setStatus('success');
+         if (runId) {
+@@ -187,6 +202,12 @@ export default function TrainingForm() {
+     saveJob();
+   };
+ 
++  const handleScheduleConfirm = () => {
++    if (!scheduleDateTime) return;
++    setShowScheduleModal(false);
++    saveJob(scheduleDateTime);
++  };
++
+   return (
+     <>
+       <TopBar>
+@@ -205,7 +226,7 @@ export default function TrainingForm() {
+               <SelectInput
+                 value={`${gpuIDs}`}
+                 onChange={value => setGpuIDs(value)}
+-                options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
++                options={gpuSelectOptions}
+               />
+             </div>
+             <div className="mx-4 bg-gray-200 dark:bg-gray-800 w-1 h-6"></div>
+@@ -258,6 +279,20 @@ export default function TrainingForm() {
+             {showAdvancedView ? 'Show Simple' : 'Show Advanced'}
+           </Button>
+         </div>
++        {!runId && (
++          <div className="pr-2">
++            <Button
++              className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-md"
++              onClick={() => {
++                setScheduleDateTime(getDefaultScheduleDateTime());
++                setShowScheduleModal(true);
++              }}
++              disabled={status === 'saving'}
++            >
++              Schedule Run
++            </Button>
++          </div>
++        )}
+         <div>
+           <Button
+             className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md"
+@@ -269,6 +304,40 @@ export default function TrainingForm() {
+         </div>
+       </TopBar>
+ 
++      <Dialog open={showScheduleModal} onClose={() => setShowScheduleModal(false)} className="relative z-50">
++        <div className="fixed inset-0 bg-black/50" aria-hidden="true" />
++        <div className="fixed inset-0 flex items-center justify-center p-4">
++          <DialogPanel className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-sm shadow-xl">
++            <DialogTitle className="text-lg font-semibold text-white mb-4">Schedule Run</DialogTitle>
++            <p className="text-sm text-gray-400 mb-4">
++              The job will be added to the queue automatically at the chosen time.
++            </p>
++            <label className="block text-sm text-gray-300 mb-1">Run at</label>
++            <input
++              type="datetime-local"
++              value={scheduleDateTime}
++              onChange={e => setScheduleDateTime(e.target.value)}
++              className="w-full bg-gray-800 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
++            />
++            <div className="flex justify-end gap-3 mt-6">
++              <Button
++                onClick={() => setShowScheduleModal(false)}
++                className="px-4 py-1.5 rounded bg-gray-700 hover:bg-gray-600 text-sm text-white"
++              >
++                Cancel
++              </Button>
++              <Button
++                onClick={handleScheduleConfirm}
++                disabled={!scheduleDateTime || status === 'saving'}
++                className="px-4 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-sm text-white disabled:opacity-50"
++              >
++                {status === 'saving' ? 'Saving...' : 'Schedule'}
++              </Button>
++            </div>
++          </DialogPanel>
++        </div>
++      </Dialog>
++
+       <input
+         ref={fileInputRef}
+         type="file"
+diff --git a/ui/src/app/jobs/new/utils.ts b/ui/src/app/jobs/new/utils.ts
+index e69b912..19f6e4b 100644
+--- a/ui/src/app/jobs/new/utils.ts
++++ b/ui/src/app/jobs/new/utils.ts
+@@ -143,4 +143,8 @@ export const handleModelArchChange = (
+   for (const key in newDefaults) {
+     setJobConfig(newDefaults[key][0], key);
+   }
++
++  if (!newArch?.additionalSections?.includes('launch.deepspeed_zero3')) {
++    setJobConfig(undefined, 'config.launch');
++  }
+ };
+diff --git a/ui/src/app/layout.tsx b/ui/src/app/layout.tsx
+index bc692e1..a802ac1 100644
+--- a/ui/src/app/layout.tsx
++++ b/ui/src/app/layout.tsx
+@@ -33,8 +33,9 @@ export default function RootLayout({ children }: { children: React.ReactNode })
+           dangerouslySetInnerHTML={{
+             __html: `
+               (function() {
+-                var theme = localStorage.getItem('theme') || 'dark';
++                var theme = localStorage.getItem('theme') || 'bearded';
+                 if (theme === 'dark') document.documentElement.classList.add('dark');
++                if (theme === 'bearded') document.documentElement.classList.add('theme-bearded');
+               })();
+             `,
+           }}
+diff --git a/ui/src/app/manifest.json b/ui/src/app/manifest.json
+index ced3ca5..a337285 100644
+--- a/ui/src/app/manifest.json
++++ b/ui/src/app/manifest.json
+@@ -15,7 +15,7 @@
+       "purpose": "maskable"
+     }
+   ],
+-  "theme_color": "#000000",
+-  "background_color": "#000000",
++  "theme_color": "#0a0a12",
++  "background_color": "#0a0a12",
+   "display": "standalone"
+ }
+\ No newline at end of file
+diff --git a/ui/src/components/AdvancedConfigEditor.tsx b/ui/src/components/AdvancedConfigEditor.tsx
+index ad6f916..4171adc 100644
+--- a/ui/src/components/AdvancedConfigEditor.tsx
++++ b/ui/src/components/AdvancedConfigEditor.tsx
+@@ -153,7 +153,7 @@ export default function AdvancedConfigEditor<T>({ config, setConfig, transformOn
+         width="100%"
+         defaultLanguage="yaml"
+         value={editorValue}
+-        theme={theme === 'dark' ? 'vs-dark' : 'light'}
++        theme={theme === 'light' ? 'light' : 'vs-dark'}
+         className="z-0"
+         onChange={handleChange}
+         onMount={handleEditorDidMount}
+diff --git a/ui/src/components/CaptionDatasetModal.tsx b/ui/src/components/CaptionDatasetModal.tsx
+index 2db10ea..4bb379c 100644
+--- a/ui/src/components/CaptionDatasetModal.tsx
++++ b/ui/src/components/CaptionDatasetModal.tsx
+@@ -17,6 +17,7 @@ import CaptionSimpleJob from '@/components/CaptionSimpleJob';
+ import AdvancedConfigEditor from '@/components/AdvancedConfigEditor';
+ import { SelectInput } from '@/components/formInputs';
+ import { Loader2 } from 'lucide-react';
++import { getGpuSelectOptions } from '@/helpers/gpuOptions';
+ 
+ export interface CaptionDatasetModalState {
+   datasetPath: string;
+@@ -52,6 +53,7 @@ export const CaptionDatasetModal: React.FC = () => {
+   const isSavingRef = useRef(false);
+   const [isSaving, setIsSaving] = useState(false);
+   const showGPUSelect = !isMac();
++  const gpuSelectOptions = getGpuSelectOptions(gpuList);
+   const isLoadingExistingJob = !!(modalInfo?.jobId || modalInfo?.cloneId) && !hasLoadedExistingJob;
+   const showLoadingOverlay = isLoadingExistingJob || isSaving;
+ 
+@@ -184,7 +186,7 @@ export const CaptionDatasetModal: React.FC = () => {
+               <SelectInput
+                 value={`${gpuIDs}`}
+                 onChange={value => setGpuIDs(value)}
+-                options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
++                options={gpuSelectOptions}
+               />
+             </div>
+           )}
+diff --git a/ui/src/components/CaptionSimpleJob.tsx b/ui/src/components/CaptionSimpleJob.tsx
+index fb691bd..f4641bf 100644
+--- a/ui/src/components/CaptionSimpleJob.tsx
++++ b/ui/src/components/CaptionSimpleJob.tsx
+@@ -17,6 +17,7 @@ import {
+   maxResOptions,
+   quantizationOptions,
+ } from '@/helpers/captionOptions';
++import { getGpuSelectOptions } from '@/helpers/gpuOptions';
+ 
+ type Props = {
+   jobConfig: CaptionJobConfig;
+@@ -30,6 +31,7 @@ type Props = {
+ const CaptionSimpleJob: React.FC<Props> = ({ jobConfig, setJobConfig, gpuIDs, setGpuIDs, gpuList, showGPUSelect }) => {
+   const selectedCaptionOption = captionerTypes.find(option => option.name === jobConfig.config.process[0].type);
+   const additionalSections = selectedCaptionOption?.additionalSections || [];
++  const gpuSelectOptions = getGpuSelectOptions(gpuList);
+ 
+   return (
+     <div className="text-sm text-gray-400">
+@@ -50,7 +52,7 @@ const CaptionSimpleJob: React.FC<Props> = ({ jobConfig, setJobConfig, gpuIDs, se
+               label="GPU ID"
+               value={`${gpuIDs}`}
+               onChange={value => setGpuIDs(value)}
+-              options={gpuList.map((gpu: any) => ({ value: `${gpu.index}`, label: `GPU #${gpu.index}` }))}
++              options={gpuSelectOptions}
+             />
+           </div>
+         )}
+diff --git a/ui/src/components/JobActionBar.tsx b/ui/src/components/JobActionBar.tsx
+index 5623ae6..2a19a9b 100644
+--- a/ui/src/components/JobActionBar.tsx
++++ b/ui/src/components/JobActionBar.tsx
+@@ -3,7 +3,7 @@ import { Eye, Trash2, Pen, Play, Pause, Cog, X } from 'lucide-react';
+ import { Button } from '@headlessui/react';
+ import { openConfirm } from '@/components/ConfirmModal';
+ import { Job } from '@prisma/client';
+-import { startJob, stopJob, deleteJob, getAvaliableJobActions, markJobAsStopped } from '@/utils/jobs';
++import { startJob, stopJob, deleteJob, getAvaliableJobActions, markJobAsStopped, cancelScheduledJob } from '@/utils/jobs';
+ import { startQueue } from '@/utils/queue';
+ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/react';
+ import { redirect } from 'next/navigation';
+@@ -26,7 +26,7 @@ export default function JobActionBar({
+   hideView,
+   autoStartQueue = false,
+ }: JobActionBarProps) {
+-  const { canStart, canStop, canDelete, canEdit, canRemoveFromQueue } = getAvaliableJobActions(job);
++  const { canStart, canStop, canDelete, canEdit, canRemoveFromQueue, canCancelSchedule } = getAvaliableJobActions(job);
+ 
+   if (!afterDelete) afterDelete = onRefresh;
+ 
+@@ -60,6 +60,19 @@ export default function JobActionBar({
+           <X />
+         </Button>
+       )}
++      {canCancelSchedule && (
++        <Button
++          title="Cancel schedule"
++          onClick={async () => {
++            if (!canCancelSchedule) return;
++            await cancelScheduledJob(job.id);
++            if (onRefresh) onRefresh();
++          }}
++          className={`ml-2 opacity-100`}
++        >
++          <X />
++        </Button>
++      )}
+       {canStop && (
+         <Button
+           onClick={() => {
+diff --git a/ui/src/components/JobsTable.tsx b/ui/src/components/JobsTable.tsx
+index 547f433..b3f6810 100644
+--- a/ui/src/components/JobsTable.tsx
++++ b/ui/src/components/JobsTable.tsx
+@@ -10,6 +10,7 @@ import classNames from 'classnames';
+ import { startQueue, stopQueue } from '@/utils/queue';
+ import { CgSpinner } from 'react-icons/cg';
+ import useGPUInfo from '@/hooks/useGPUInfo';
++import useSchedulerStatus from '@/hooks/useSchedulerStatus';
+ 
+ interface JobsTableProps {
+   autoStartQueue?: boolean;
+@@ -17,10 +18,36 @@ interface JobsTableProps {
+   job_type?: string | null;
+ }
+ 
++const getGpuIds = (gpuIds: string | null | undefined): string[] => {
++  return `${gpuIds ?? ''}`
++    .split(',')
++    .map(id => id.trim())
++    .filter(Boolean);
++};
++
++const getGpuGroupName = (gpuIds: string | null | undefined, gpuList: GpuInfo[]): string => {
++  if (gpuIds === 'mps') {
++    return 'Apple GPU';
++  }
++
++  const ids = getGpuIds(gpuIds);
++  if (ids.length === 0) {
++    return 'Unknown GPU';
++  }
++
++  return ids
++    .map(id => {
++      const gpu = gpuList.find(gpu => `${gpu.index}` === id);
++      return gpu ? `GPU ${id}: ${gpu.name}` : `GPU ${id}`;
++    })
++    .join(' + ');
++};
++
+ export default function JobsTable({ onlyActive = false, job_type = null }: JobsTableProps) {
+   const { jobs, status, refreshJobs } = useJobsList({ onlyActive, reloadInterval: 5000, job_type });
+   const { queues, status: queueStatus, refreshQueues } = useQueueList();
+   const { gpuList, isGPUInfoLoaded } = useGPUInfo();
++  const schedulerStatus = useSchedulerStatus();
+ 
+   const refresh = () => {
+     refreshJobs();
+@@ -90,6 +117,19 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+         if (row.status === 'completed') statusClass = 'text-green-400';
+         if (row.status === 'failed') statusClass = 'text-red-400';
+         if (row.status === 'running') statusClass = 'text-blue-400';
++        if (row.status === 'scheduled') statusClass = 'text-yellow-400';
++
++        if (row.status === 'scheduled' && row.scheduled_at) {
++          const scheduledDate = new Date(row.scheduled_at);
++          return (
++            <span className={statusClass}>
++              scheduled{' '}
++              <span className="text-xs text-gray-500" title={scheduledDate.toLocaleString()}>
++                {scheduledDate.toLocaleString()}
++              </span>
++            </span>
++          );
++        }
+ 
+         return <span className={statusClass}>{row.status}</span>;
+       },
+@@ -109,6 +149,16 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+     },
+   ];
+ 
++  const scheduledJobs = useMemo(() => {
++    return jobs
++      .filter(job => job.status === 'scheduled')
++      .sort((a, b) => {
++        if (!a.scheduled_at) return 1;
++        if (!b.scheduled_at) return -1;
++        return new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime();
++      });
++  }, [jobs]);
++
+   const jobsDict = useMemo(() => {
+     if (!isGPUInfoLoaded) return {};
+     if (jobs.length === 0) return {};
+@@ -118,11 +168,13 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+     });
+     jd['Idle'] = { name: 'Idle', jobs: [] };
+     jobs.forEach(job => {
+-      const gpu = gpuList.find(gpu => job.gpu_ids?.split(',').includes(gpu.index.toString())) as GpuInfo;
+-      const key = `${gpu?.index || '0'}`;
+-      if (['queued', 'running', 'stopping'].includes(job.status) && key in jd) {
++      if (['queued', 'running', 'stopping'].includes(job.status)) {
++        const key = `${job.gpu_ids || 'unknown'}`;
++        if (!(key in jd)) {
++          jd[key] = { name: getGpuGroupName(job.gpu_ids, gpuList), jobs: [] };
++        }
+         jd[key].jobs.push(job);
+-      } else {
++      } else if (job.status !== 'scheduled') {
+         jd['Idle'].jobs.push(job);
+       }
+     });
+@@ -142,7 +194,7 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+       }
+     });
+     return jd;
+-  }, [jobs, queues, isGPUInfoLoaded]);
++  }, [jobs, gpuList, isGPUInfoLoaded]);
+ 
+   let isLoading = status === 'loading' || queueStatus === 'loading' || !isGPUInfoLoaded;
+ 
+@@ -151,6 +203,38 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+ 
+   return (
+     <div>
++      <div className="flex items-center gap-2 mb-3 text-xs text-gray-400">
++        <span
++          className={classNames('inline-block w-2 h-2 rounded-full', {
++            'bg-green-400': schedulerStatus.active,
++            'bg-gray-600': !schedulerStatus.active,
++          })}
++        />
++        <span>
++          Scheduler:{' '}
++          {schedulerStatus.active ? (
++            <span className="text-green-400">Active</span>
++          ) : (
++            <span className="text-gray-500">Inactive</span>
++          )}
++        </span>
++      </div>
++      {scheduledJobs.length > 0 && (
++        <div className="mb-6">
++          <div className="text-md flex px-4 py-1 rounded-t-lg bg-yellow-700 dark:bg-yellow-900">
++            <div className="flex items-center space-x-2 flex-1 py-2">
++              <h2 className="font-semibold text-white">Scheduled</h2>
++            </div>
++          </div>
++          <UniversalTable
++            columns={columns}
++            rows={scheduledJobs}
++            isLoading={isLoading}
++            onRefresh={refresh}
++            theadClassName="bg-yellow-800 dark:bg-yellow-950 text-white dark:text-gray-400"
++          />
++        </div>
++      )}
+       {Object.keys(jobsDict)
+         .sort()
+         .filter(key => key !== 'Idle')
+@@ -167,7 +251,9 @@ export default function JobsTable({ onlyActive = false, job_type = null }: JobsT
+               >
+                 <div className="flex items-center space-x-2 flex-1 py-2">
+                   <h2 className="font-semibold text-white">{jobsDict[gpuKey].name}</h2>
+-                  <span className="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-300"># {queue?.gpu_ids}</span>
++                  <span className="px-2 py-0.5 bg-gray-700 rounded-full text-xs text-gray-300">
++                    # {queue?.gpu_ids ?? gpuKey}
++                  </span>
+                 </div>
+                 <div className="text-sm text-gray-300 italic flex items-center">
+                   {queue?.is_running ? (
+diff --git a/ui/src/components/ThemeLogo.tsx b/ui/src/components/ThemeLogo.tsx
+index 53809fe..635c48b 100644
+--- a/ui/src/components/ThemeLogo.tsx
++++ b/ui/src/components/ThemeLogo.tsx
+@@ -4,7 +4,7 @@ import { useTheme } from './ThemeProvider';
+ 
+ const ThemeLogo = () => {
+   const { theme } = useTheme();
+-  const src = theme === 'dark' ? '/ostris_logo.png' : '/ostris_logo_black.png';
++  const src = theme === 'light' ? '/ostris_logo_black.png' : '/ostris_logo.png';
+ 
+   return <img src={src} alt="Ostris AI Toolkit" className="w-auto h-7 mr-3 inline" />;
+ };
+diff --git a/ui/src/components/ThemeProvider.tsx b/ui/src/components/ThemeProvider.tsx
+index ffdca58..b8bed15 100644
+--- a/ui/src/components/ThemeProvider.tsx
++++ b/ui/src/components/ThemeProvider.tsx
+@@ -2,7 +2,7 @@
+ 
+ import { createContext, useContext, useEffect, useState } from 'react';
+ 
+-type Theme = 'light' | 'dark';
++type Theme = 'light' | 'dark' | 'bearded';
+ 
+ interface ThemeContextValue {
+   theme: Theme;
+@@ -16,23 +16,28 @@ const ThemeContext = createContext<ThemeContextValue>({
+ 
+ export const useTheme = () => useContext(ThemeContext);
+ 
++const applyThemeClass = (theme: Theme) => {
++  document.documentElement.classList.toggle('dark', theme === 'dark');
++  document.documentElement.classList.toggle('theme-bearded', theme === 'bearded');
++};
++
+ export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+-  const [theme, setTheme] = useState<Theme>('dark');
++  const [theme, setTheme] = useState<Theme>('bearded');
+   const [mounted, setMounted] = useState(false);
+ 
+   useEffect(() => {
+     const stored = localStorage.getItem('theme') as Theme | null;
+-    const initial = stored || 'dark';
++    const initial = stored || 'bearded';
+     setTheme(initial);
+-    document.documentElement.classList.toggle('dark', initial === 'dark');
++    applyThemeClass(initial);
+     setMounted(true);
+   }, []);
+ 
+   const toggleTheme = () => {
+-    const next = theme === 'dark' ? 'light' : 'dark';
++    const next = theme === 'bearded' ? 'dark' : theme === 'dark' ? 'light' : 'bearded';
+     setTheme(next);
+     localStorage.setItem('theme', next);
+-    document.documentElement.classList.toggle('dark', next === 'dark');
++    applyThemeClass(next);
+   };
+ 
+   if (!mounted) return null;
+diff --git a/ui/src/docs.tsx b/ui/src/docs.tsx
+index 6a1c0b5..0d8e07b 100644
+--- a/ui/src/docs.tsx
++++ b/ui/src/docs.tsx
+@@ -17,8 +17,24 @@ const docs: { [key: string]: ConfigDoc } = {
+     title: 'GPU ID',
+     description: (
+       <>
+-        This is the GPU that will be used for training. Only one GPU can be used per job at a time via the UI currently.
+-        However, you can start multiple jobs in parallel, each using a different GPU.
++        This is the GPU that will be used for training. Most jobs use one GPU. Profiles that explicitly support
++        distributed launch, such as DeepSpeed ZeRO-3 for FLUX.2 Klein 9B, can select a two-GPU option.
++        <br />
++        <br />
++        You can still start multiple single-GPU jobs in parallel, each using a different GPU.
++      </>
++    ),
++  },
++  'launch.deepspeed_zero3': {
++    title: 'DeepSpeed ZeRO-3',
++    description: (
++      <>
++        Launch this job with Accelerate and the bundled DeepSpeed ZeRO-3 CPU offload config. This is intended for
++        FLUX.2 Klein 9B LoRA training on two visible CUDA GPUs with limited per-GPU VRAM.
++        <br />
++        <br />
++        Enabling it selects the first two GPUs and applies conservative LoRA training defaults. DeepSpeed and Accelerate
++        must be installed in the project virtual environment before the job can start.
+       </>
+     ),
+   },
+diff --git a/ui/src/helpers/gpuOptions.ts b/ui/src/helpers/gpuOptions.ts
+new file mode 100644
+index 0000000..fa3d701
+--- /dev/null
++++ b/ui/src/helpers/gpuOptions.ts
+@@ -0,0 +1,39 @@
++import type { GpuInfo, SelectOption } from '@/types';
++
++export function getFirstTwoGpuIDs(gpuList: GpuInfo[] = []): string | null {
++  const sortedGpus = [...gpuList].sort((a, b) => a.index - b.index);
++  if (sortedGpus.length < 2) {
++    return null;
++  }
++  return `${sortedGpus[0].index},${sortedGpus[1].index}`;
++}
++
++export function getGpuSelectOptions(gpuList: GpuInfo[] = []): SelectOption[] {
++  const sortedGpus = [...gpuList].sort((a, b) => a.index - b.index);
++  const options = sortedGpus.map(gpu => ({
++    value: `${gpu.index}`,
++    label: `GPU #${gpu.index}`,
++  }));
++
++  if (sortedGpus.length > 1) {
++    for (let i = 0; i < sortedGpus.length; i++) {
++      for (let j = i + 1; j < sortedGpus.length; j++) {
++        options.push({
++          value: `${sortedGpus[i].index},${sortedGpus[j].index}`,
++          label: `GPUs #${sortedGpus[i].index}, #${sortedGpus[j].index}`,
++        });
++      }
++    }
++  }
++
++  if (sortedGpus.length > 2) {
++    const combinedIds = sortedGpus.map(gpu => gpu.index).join(',');
++    const combinedLabel = sortedGpus.map(gpu => `#${gpu.index}`).join(', ');
++    options.push({
++      value: combinedIds,
++      label: `GPUs ${combinedLabel}`,
++    });
++  }
++
++  return options;
++}
+diff --git a/ui/src/hooks/useJobsList.tsx b/ui/src/hooks/useJobsList.tsx
+index ad83c5c..fa293f4 100644
+--- a/ui/src/hooks/useJobsList.tsx
++++ b/ui/src/hooks/useJobsList.tsx
+@@ -26,7 +26,9 @@ export default function useJobsList({ onlyActive = false, reloadInterval = null,
+           setStatus('error');
+         } else {
+           if (onlyActive) {
+-            data.jobs = data.jobs.filter((job: Job) => ['running', 'queued', 'stopping'].includes(job.status));
++            data.jobs = data.jobs.filter((job: Job) =>
++              ['running', 'queued', 'stopping', 'scheduled'].includes(job.status),
++            );
+           }
+           setJobs(data.jobs);
+           setStatus('success');
+diff --git a/ui/src/types.ts b/ui/src/types.ts
+index d838a38..1dc74f2 100644
+--- a/ui/src/types.ts
++++ b/ui/src/types.ts
+@@ -93,6 +93,8 @@ export interface DatasetConfig {
+   is_reg: boolean;
+   network_weight: number;
+   cache_latents_to_disk?: boolean;
++  cache_text_embeddings?: boolean;
++  rgba?: boolean;
+   resolution: number[];
+   controls: string[];
+   control_path?: string | null;
+@@ -130,6 +132,7 @@ export interface TrainConfig {
+   content_or_style: string;
+   optimizer: string;
+   lr: number;
++  max_grad_norm?: number;
+   ema_config?: EMAConfig;
+   dtype: string;
+   unload_text_encoder: boolean;
+@@ -171,6 +174,7 @@ export interface ModelConfig {
+   layer_offloading_transformer_percent?: number;
+   layer_offloading_text_encoder_percent?: number;
+   assistant_lora_path?: string;
++  vae_path?: string;
+ }
+ 
+ export interface SampleItem {
+@@ -241,6 +245,12 @@ export interface ProcessConfig {
+ export interface ConfigObject {
+   name: string;
+   process: ProcessConfig[];
++  launch?: LaunchConfig;
++}
++
++export interface LaunchConfig {
++  use_deepspeed_zero3?: boolean;
++  accelerate_config?: string;
+ }
+ 
+ export interface MetaConfig {
+@@ -299,4 +309,4 @@ export interface GroupedSelectOption {
+   readonly options: SelectOption[];
+ }
+ 
+-export type JobStatus = 'queued' | 'running' | 'stopping' | 'stopped' | 'completed' | 'error';
++export type JobStatus = 'scheduled' | 'queued' | 'running' | 'stopping' | 'stopped' | 'completed' | 'error';
+diff --git a/ui/src/utils/jobs.ts b/ui/src/utils/jobs.ts
+index 43d0bdc..d46eb02 100644
+--- a/ui/src/utils/jobs.ts
++++ b/ui/src/utils/jobs.ts
+@@ -50,6 +50,22 @@ export const deleteJob = (jobID: string) => {
+   });
+ };
+ 
++export const cancelScheduledJob = (jobID: string) => {
++  return new Promise<void>((resolve, reject) => {
++    apiClient
++      .get(`/api/jobs/${jobID}/mark_stopped`)
++      .then(res => res.data)
++      .then(data => {
++        console.log('Scheduled job cancelled:', data);
++        resolve();
++      })
++      .catch(error => {
++        console.error('Error cancelling scheduled job:', error);
++        reject(error);
++      });
++  });
++};
++
+ export const markJobAsStopped = (jobID: string) => {
+   return new Promise<void>((resolve, reject) => {
+     apiClient
+@@ -73,16 +89,17 @@ export const getJobConfig = (job: Job) => {
+ export const getAvaliableJobActions = (job: Job) => {
+   const jobConfig = getJobConfig(job);
+   const isStopping = job.stop && job.status === 'running';
+-  const canDelete = ['queued', 'completed', 'stopped', 'error'].includes(job.status) && !isStopping;
+-  let canEdit = ['queued', 'completed', 'stopped', 'error'].includes(job.status) && !isStopping;
++  const canDelete = ['queued', 'completed', 'stopped', 'error', 'scheduled'].includes(job.status) && !isStopping;
++  let canEdit = ['queued', 'completed', 'stopped', 'error', 'scheduled'].includes(job.status) && !isStopping;
+   const canRemoveFromQueue = job.status === 'queued';
++  const canCancelSchedule = job.status === 'scheduled';
+   const canStop = job.status === 'running' && !isStopping;
+   let canStart = ['stopped', 'error'].includes(job.status) && !isStopping;
+   // can resume if more steps were added
+   if (job.status === 'completed' && (jobConfig.config.process[0].train?.steps || 0) > job.step && !isStopping) {
+     canStart = true;
+   }
+-  return { canDelete, canEdit, canStop, canStart, canRemoveFromQueue };
++  return { canDelete, canEdit, canStop, canStart, canRemoveFromQueue, canCancelSchedule };
+ };
+ 
+ export const getNumberOfSamples = (job: Job) => {

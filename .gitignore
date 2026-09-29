@@ -1,0 +1,20 @@
+# weights and checkpoints (hosted on Hugging Face)
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.bin
+*.gguf
+weights/
+# a local ai-toolkit checkout, if you put it inside this repo
+ai-toolkit/
+# caches and logs
+__pycache__/
+*.py[cod]
+.cache/
+.gradio/
+*.log
+logs/
+.venv/
+venv/
+.DS_Store

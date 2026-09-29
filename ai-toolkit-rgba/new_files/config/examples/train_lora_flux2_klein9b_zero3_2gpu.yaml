@@ -1,0 +1,72 @@
+---
+job: extension
+config:
+  name: "flux2_klein9b_lora_zero3"
+  process:
+    - type: 'sd_trainer'
+      training_folder: "output"
+      device: cuda:0
+      network:
+        type: "lora"
+        linear: 16
+        linear_alpha: 16
+        transformer_only: true
+      save:
+        dtype: bf16
+        save_every: 250
+        max_step_saves_to_keep: 4
+        save_format: "diffusers"
+        push_to_hub: false
+      datasets:
+        - folder_path: "${DATASET_PATH}"
+          caption_ext: "txt"
+          caption_dropout_rate: 0.05
+          shuffle_tokens: false
+          cache_latents_to_disk: true
+          cache_text_embeddings: true
+          resolution: [512, 768, 1024]
+      train:
+        batch_size: 1
+        steps: 2000
+        gradient_accumulation: 1
+        train_unet: true
+        train_text_encoder: false
+        gradient_checkpointing: true
+        noise_scheduler: "flowmatch"
+        timestep_type: "weighted"
+        optimizer: "adamw"
+        lr: 1e-4
+        max_grad_norm: 1.0
+        skip_first_sample: true
+        disable_sampling: true
+        cache_text_embeddings: true
+        ema_config:
+          use_ema: false
+        dtype: bf16
+      model:
+        name_or_path: "black-forest-labs/FLUX.2-klein-base-9B"
+        arch: "flux2_klein_9b"
+        quantize: true
+        quantize_te: true
+        qtype: "qfloat8"
+        low_vram: true
+        layer_offloading: true
+        layer_offloading_transformer_percent: 1.0
+        layer_offloading_text_encoder_percent: 1.0
+        model_kwargs:
+          match_target_res: false
+      sample:
+        sampler: "flowmatch"
+        sample_every: 250
+        width: 1024
+        height: 1024
+        prompts:
+          - "a portrait photo of [trigger], soft natural light"
+        neg: ""
+        seed: 42
+        walk_seed: true
+        guidance_scale: 4
+        sample_steps: 25
+meta:
+  name: "[name]"
+  version: '1.0'
