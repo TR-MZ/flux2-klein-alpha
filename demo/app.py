@@ -53,7 +53,7 @@ MODEL_CONFIG = dict(
 # Sampling settings for each task, taken from the training job configs.
 # scale = linear_alpha / rank (both LoRAs were trained with alpha == rank).
 TASKS = {
-    "extract": dict(prompt="Foreground", neg="", steps=25, guidance=4.0, seed=42, scale=1.0),
+    "extract": dict(prompt="Foreground", neg="", steps=6, guidance=4.0, seed=42, scale=1.0),
     "remove": dict(prompt="Photo with the object removed, clean background preserved.", neg="", steps=30,
                    guidance=4.0, seed=42, scale=1.0),
 }
@@ -433,7 +433,7 @@ def run_remove_core(photo, mask, area, grow, keep_outside, progress, desc="Remov
     return out, (W, H), mask
 
 
-AREAS = {"512² (fast, ~45 s)": 512 * 512, "768² (~2x slower)": 768 * 768, "1024² (slow)": 1024 * 1024}
+AREAS = {"512² (fast)": 512 * 512, "768² (~2x slower)": 768 * 768, "1024² (slow)": 1024 * 1024}
 
 
 def tab_extract(comp, plate, res, progress=gr.Progress()):
@@ -554,7 +554,7 @@ def ex_editor(photo):
 
 
 INTRO = """# FLUX.2 Klein Alpha — FLUX.2 Klein Base 9B + RGBA VAE
-Generation runs on one GPU, one request at a time (~45 s at 512²). Requests queue up; progress shows below the outputs.
+Generation runs on one GPU, one request at a time (at 512²: Extract ~11 s, Remove ~40 s). Requests queue up; progress shows below the outputs.
 """
 
 with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:

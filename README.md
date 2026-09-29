@@ -54,7 +54,7 @@ Klein Base **4B** is listed as Apache 2.0. That does not apply here: these weigh
 
 ## Quick start
 
-You need Linux, Python 3.10+ and one NVIDIA GPU with about **12 GB of VRAM**. The demo runs the 9B transformer and text encoder quantized to fp8 (qfloat8), as during training. Each image takes about **45 s at 512²** (measured on a 16 GB card).
+You need Linux, Python 3.10+ and one NVIDIA GPU with about **12 GB of VRAM**. The demo runs the 9B transformer and text encoder quantized to fp8 (qfloat8), as during training. At 512² on a 16 GB card, Extract takes about **11 s** (6 steps, which scores the same as 25 on my test set) and Remove about **40 s** (30 steps).
 
 ```bash
 # 1. this repo, and ai-toolkit at the upstream commit the patch is made against, with my changes applied
