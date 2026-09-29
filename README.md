@@ -139,4 +139,7 @@ The images in `demo/examples/` come from my training and evaluation data. **Thei
 
 ## Licence
 
-The licence for the code in this repository is to be decided. The ai-toolkit patch modifies MIT-licensed code, and the weights on Hugging Face are under the FLUX Non-Commercial License (see above).
+- **Code** (the demo and my changes in `ai-toolkit-rgba/`): [MIT](LICENSE), © 2026 Xavier Jara.
+- **ai-toolkit:** the patch modifies ai-toolkit, which is MIT-licensed, © 2024 Ostris, LLC. Its licence is kept in [`ai-toolkit-rgba/LICENSE-ai-toolkit`](ai-toolkit-rgba/LICENSE-ai-toolkit).
+- **Weights** on Hugging Face: FLUX Non-Commercial License (see above). The MIT licence does not apply to them.
+- **Example images** in `demo/examples/`: not covered by the MIT licence (see their sources above).
