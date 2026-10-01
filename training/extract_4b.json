@@ -1,0 +1,31 @@
+{
+  "model": "Extract-4B",
+  "base_model": "black-forest-labs/FLUX.2-klein-base-4B",
+  "checkpoint_step": 11250,
+  "sha256": "72a16786065e780d1f3f13ad5a66501abe12fe5e8c0dec255ec7d10b623e15ca",
+  "bytes": 92426712,
+  "lora_rank": 32,
+  "lora_alpha": 32,
+  "adapted_modules": 80,
+  "vae": "trmz/flux2-klein-alpha/vae",
+  "training_recipe": "FG Extract Opaque V5 (9B), adapted to Klein Base 4B",
+  "conditioning": [
+    "composite",
+    "background"
+  ],
+  "target": "RGBA foreground",
+  "dataset_triplets": 2039,
+  "resolution": [
+    512,
+    768
+  ],
+  "optimizer": "adamw8bit",
+  "lr": 5e-05,
+  "weight_decay": 0.01,
+  "gradient_accumulation": 3,
+  "loss": "mae",
+  "alpha_edge_multiplier": 3,
+  "sharpness_multiplier": 0.25,
+  "recommended_steps": 25,
+  "guidance": 4
+}

@@ -5,6 +5,7 @@
 #   ./run.sh --host 0.0.0.0 --port 7870               -> reachable from other machines on your network
 #   PYTHON=/path/to/ai-toolkit/venv/bin/python ./run.sh
 #   CUDA_VISIBLE_DEVICES=1 ./run.sh                   -> use another GPU (default: GPU 0)
+#   EXTRACT_MODEL=4B ./run.sh                       -> start with the 4B extractor
 #   PRELOAD_9B=0 ./run.sh                             -> load the 9B on the first generation request
 #   VAE_PATH=... EXTRACT_LORA=... REMOVE_LORA=... ./run.sh   -> use local weights instead of Hugging Face
 set -euo pipefail

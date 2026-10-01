@@ -1,12 +1,12 @@
-"""FLUX.2 Klein Alpha demo: RGBA foreground extraction and object removal on FLUX.2 Klein Base 9B + an RGBA VAE.
+"""FLUX.2 Klein Alpha demo: RGBA foreground extraction on Klein Base 4B/9B and object removal on Base 9B + an RGBA VAE.
 
 Tabs
-  Extract         composite + background plate  -> RGBA cut-out            (Extract-9B LoRA)
+  Extract         composite + background plate  -> RGBA cut-out            (Extract-4B or Extract-9B LoRA)
   Extract (auto)  photo + brush over the object -> plate (Remove-9B) -> RGBA cut-out (Extract-9B)
   Remove          photo + brush over the object -> photo with the object erased      (Remove-9B LoRA)
   VAE             RGBA PNG -> encode/decode through the 4-channel VAE -> reconstruction + alpha RMSE
 
-The 9B base is loaded once (qfloat8, as at training time); both LoRAs are attached as forward hooks on the
+The selected 4B or 9B base is loaded (qfloat8, as at training time); both LoRAs are attached as forward hooks on the
 quantized Linear layers and switched per request. Inference reuses ai-toolkit's own sampling path
 (Flux2Klein9BModel.generate_single_image, with the ai-toolkit-rgba patch applied), which decodes RGBA
 latents through the 4-channel VAE.
@@ -14,6 +14,7 @@ latents through the 4-channel VAE.
 Usage:  python app.py [--host 127.0.0.1] [--port 7860] [--check-weights]
 """
 import argparse
+import gc
 import os
 import sys
 import tempfile
@@ -34,6 +35,7 @@ import gradio as gr
 # environment variable that points to a local copy:
 #   VAE_PATH      folder with the diffusers RGBA VAE (config.json + diffusion_pytorch_model.safetensors)
 #   EXTRACT_LORA  Extract-9B LoRA .safetensors file
+#   EXTRACT_4B_LORA  Extract-4B LoRA .safetensors file
 #   REMOVE_LORA   Remove-9B LoRA .safetensors file
 #   AITK_PATH     ai-toolkit checkout with the ai-toolkit-rgba patch applied
 # =============================================================================================================
@@ -41,6 +43,7 @@ HF_REPO = os.environ.get("HF_REPO", "trmz/flux2-klein-alpha")
 HF_REVISION = os.environ.get("HF_REVISION") or None  # branch, tag or commit; None = main
 HF_VAE_FILES = ("vae/config.json", "vae/diffusion_pytorch_model.safetensors")
 HF_EXTRACT_LORA = "loras/extract_9b.safetensors"
+HF_EXTRACT_4B_LORA = "loras/extract_4b.safetensors"
 HF_REMOVE_LORA = "loras/remove_9b.safetensors"
 BASE_MODEL = "black-forest-labs/FLUX.2-klein-base-9B"  # gated: accept its licence on Hugging Face first
 
@@ -60,6 +63,9 @@ TASKS = {
 # =============================================================================================================
 
 PRELOAD = os.environ.get("PRELOAD_9B", "1") == "1"
+DEFAULT_EXTRACT_MODEL = os.environ.get("EXTRACT_MODEL", "9B").upper()
+if DEFAULT_EXTRACT_MODEL not in ("4B", "9B"):
+    raise ValueError("EXTRACT_MODEL must be 4B or 9B")
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 EX = os.path.join(HERE, "examples")
@@ -106,13 +112,13 @@ def _hf_file(filename):
     except RepositoryNotFoundError as e:
         raise WeightsError(f"Hugging Face repo '{HF_REPO}' was not found, or it is private and you are not logged "
                            "in with an account that can read it (`huggingface-cli login`). You can also download "
-                           "the weights yourself and point VAE_PATH / EXTRACT_LORA / REMOVE_LORA at them.") from e
+                           "the weights yourself and point VAE_PATH / EXTRACT_LORA / EXTRACT_4B_LORA / REMOVE_LORA at them.") from e
     except RevisionNotFoundError as e:
         raise WeightsError(f"Revision '{HF_REVISION}' does not exist in '{HF_REPO}'.") from e
     except EntryNotFoundError as e:
         raise WeightsError(f"'{filename}' is not in the Hugging Face repo '{HF_REPO}' (yet). Expected layout: "
-                           f"{', '.join(HF_VAE_FILES + (HF_EXTRACT_LORA, HF_REMOVE_LORA))}. Point the matching "
-                           "env var (VAE_PATH / EXTRACT_LORA / REMOVE_LORA) at a local copy instead.") from e
+                           f"{', '.join(HF_VAE_FILES + (HF_EXTRACT_LORA, HF_EXTRACT_4B_LORA, HF_REMOVE_LORA))}. Point the matching "
+                           "env var (VAE_PATH / EXTRACT_LORA / EXTRACT_4B_LORA / REMOVE_LORA) at a local copy instead.") from e
     except LocalEntryNotFoundError as e:
         raise WeightsError(f"Could not download '{filename}' from '{HF_REPO}' and it is not in the local cache. "
                            "Check your internet connection, or point the matching env var at a local copy.") from e
@@ -136,7 +142,9 @@ def vae_path():
     return os.path.dirname([_hf_file(f) for f in HF_VAE_FILES][0])
 
 
-def lora_path(task):
+def lora_path(task, size="9B"):
+    if task == "extract" and size == "4B":
+        return _local("EXTRACT_4B_LORA", "file") if os.environ.get("EXTRACT_4B_LORA") else _hf_file(HF_EXTRACT_4B_LORA)
     env = {"extract": "EXTRACT_LORA", "remove": "REMOVE_LORA"}[task]
     if os.environ.get(env):
         return _local(env, "file")
@@ -148,8 +156,10 @@ def describe_sources():
         return f"local {os.environ[env]}" if os.environ.get(env) else f"hf://{HF_REPO}/{hf}"
     return (f"  VAE:          {src('VAE_PATH', 'vae/')}\n"
             f"  Extract LoRA: {src('EXTRACT_LORA', HF_EXTRACT_LORA)}\n"
+            f"  Extract 4B:   {src('EXTRACT_4B_LORA', HF_EXTRACT_4B_LORA)}\n"
             f"  Remove LoRA:  {src('REMOVE_LORA', HF_REMOVE_LORA)}\n"
-            f"  Base model:   hf://{BASE_MODEL}")
+            f"  9B base:      hf://{BASE_MODEL}\n"
+            "  4B base:      hf://black-forest-labs/FLUX.2-klein-base-4B")
 
 
 # ----------------------------------------------------------------------------------------------- image helpers
@@ -237,11 +247,13 @@ def save_png(img, stem):
     return p
 
 
-# ----------------------------------------------------------------------------------------------- 9B engine
+# ----------------------------------------------------------------------------------------------- model engine
 class Engine:
-    """FLUX.2 Klein Base 9B loaded once; LoRAs attached as switchable forward hooks."""
+    """One Klein base model with LoRAs attached as switchable forward hooks."""
 
-    def __init__(self):
+    def __init__(self, size="9B"):
+        self.size = size
+        self._loading = False
         self.sd = None
         self.pipe = None
         self.embeds = {}
@@ -254,6 +266,7 @@ class Engine:
 
     # -- loading
     def load(self):
+        self._loading = True
         try:
             self._load()
         except Exception as e:  # surface in the UI instead of dying silently
@@ -264,14 +277,19 @@ class Engine:
 
     def _load(self):
         from toolkit.config_modules import ModelConfig
-        from extensions_built_in.diffusion_models.flux2.flux2_klein_model import Flux2Klein9BModel
+        from extensions_built_in.diffusion_models.flux2.flux2_klein_model import Flux2Klein9BModel, Flux2Klein4BModel
         from extensions_built_in.diffusion_models.flux2.flux2_model import Flux2Model
 
         t0 = time.time()
-        # resolve (and download, if needed) the small files first, so a missing file fails before the 9B loads
+        # resolve (and download, if needed) the small files first, so a missing file fails before the base model loads
         vae = vae_path()
-        self.cfg = {task: dict(c, lora=lora_path(task)) for task, c in TASKS.items()}
-        sd = Flux2Klein9BModel(device="cuda:0", model_config=ModelConfig(**MODEL_CONFIG, vae_path=vae), dtype="bf16",
+        tasks = TASKS if self.size == "9B" else {"extract": dict(TASKS["extract"], steps=25)}
+        self.cfg = {task: dict(c, lora=lora_path(task, self.size)) for task, c in tasks.items()}
+        model_config = dict(MODEL_CONFIG)
+        model_config.update(name_or_path=f"black-forest-labs/FLUX.2-klein-base-{self.size}",
+                            arch=f"flux2_klein_{self.size.lower()}")
+        model_class = Flux2Klein4BModel if self.size == "4B" else Flux2Klein9BModel
+        sd = model_class(device="cuda:0", model_config=ModelConfig(**model_config, vae_path=vae), dtype="bf16",
                                noise_scheduler=Flux2Model.get_train_scheduler())
         sd.load_model()
         pipe = sd.pipeline
@@ -308,7 +326,7 @@ class Engine:
         sd.vae.to(DEV)
         self.sd, self.pipe = sd, pipe
         self.load_seconds = time.time() - t0
-        print(f"[engine] 9B loaded in {self.load_seconds:.0f}s, LoRA modules {self.loras}", flush=True)
+        print(f"[engine] {self.size} loaded in {self.load_seconds:.0f}s, LoRA modules {self.loras}", flush=True)
 
     def _hook(self, m, inp, out):
         lo = m._loras.get(self.active)
@@ -324,13 +342,30 @@ class Engine:
     def wait(self, progress=None):
         if not self._ready.is_set():
             if progress is not None:
-                progress(0, desc="Loading FLUX.2 Klein 9B (first request only, ~1-2 min)...")
-            if self.sd is None and not PRELOAD and not getattr(self, "_loading", False):
+                progress(0, desc=f"Loading FLUX.2 Klein {self.size}...")
+            if self.sd is None and not self._loading:
                 self._loading = True
                 self.load()
             self._ready.wait()
         if self.load_error:
             raise gr.Error(f"Model failed to load: {self.load_error}")
+
+    def unload(self):
+        if self.pipe is not None:
+            # Quantization caches can retain modules after their Python owner is
+            # released. Move their storage off GPU before loading another base.
+            for mod in self.pipe.transformer.modules():
+                if hasattr(mod, "_loras"):
+                    mod._loras.clear()
+            self.pipe.transformer.to("cpu")
+            self.pipe.text_encoder.to("cpu")
+            self.sd.vae.to("cpu")
+        self.sd = self.pipe = None
+        self.embeds.clear()
+        self.cfg = {}
+        self._ready.clear()
+        gc.collect()
+        torch.cuda.empty_cache()
 
     # -- generation
     def generate(self, task, controls, size, progress=None, desc="", seed=None, steps=None):
@@ -379,7 +414,20 @@ class Engine:
         return img
 
 
-ENGINE = Engine()
+ENGINE = Engine(DEFAULT_EXTRACT_MODEL)
+
+
+def get_engine(size, progress=None):
+    """Keep only one base model resident so 4B and 9B can share a single GPU."""
+    global ENGINE
+    if ENGINE.size != size:
+        if ENGINE._loading and not ENGINE._ready.is_set():
+            ENGINE._ready.wait()
+        with GPU_LOCK:
+            ENGINE.unload()
+            ENGINE = Engine(size)
+    ENGINE.wait(progress)
+    return ENGINE
 
 
 # ----------------------------------------------------------------------------------------------- VAE (tab 3)
@@ -404,12 +452,13 @@ def _vram():
     return torch.cuda.max_memory_allocated(DEV) / 2**30
 
 
-def run_extract_core(comp, plate, area, progress, desc="Extracting"):
+def run_extract_core(comp, plate, area, progress, desc="Extracting", model="9B"):
+    engine = get_engine(model, progress)
     comp = comp.convert("RGB")
     plate = plate.convert("RGB").resize(comp.size, Image.BICUBIC)
     (comp_in, plate_in), (pw, ph), box = pad_to_ar([comp, plate])
     W, H = gen_size(pw, ph, area)
-    out = ENGINE.generate("extract", [comp_in.resize((W, H), Image.BICUBIC), plate_in.resize((W, H), Image.BICUBIC)],
+    out = engine.generate("extract", [comp_in.resize((W, H), Image.BICUBIC), plate_in.resize((W, H), Image.BICUBIC)],
                           (W, H), progress, desc)
     cw, ch = comp.size
     out = out.resize((pw, ph), Image.LANCZOS).crop((box[0], box[1], box[0] + cw, box[1] + ch))
@@ -417,12 +466,13 @@ def run_extract_core(comp, plate, area, progress, desc="Extracting"):
 
 
 def run_remove_core(photo, mask, area, grow, keep_outside, progress, desc="Removing"):
+    engine = get_engine("9B", progress)
     mask = dilate(mask, grow)
     alpha = np.where(mask, 128, 255).astype(np.uint8)
     ctrl = Image.fromarray(np.dstack([np.asarray(photo), alpha]), "RGBA")
     (ctrl_in,), (pw, ph), box = pad_to_ar([ctrl])
     W, H = gen_size(pw, ph, area)
-    out = ENGINE.generate("remove", [ctrl_in.resize((W, H), Image.BICUBIC)], (W, H), progress, desc)
+    out = engine.generate("remove", [ctrl_in.resize((W, H), Image.BICUBIC)], (W, H), progress, desc)
     cw, ch = photo.size
     out = out.convert("RGB").resize((pw, ph), Image.LANCZOS).crop((box[0], box[1], box[0] + cw, box[1] + ch))
     if keep_outside:
@@ -436,23 +486,23 @@ def run_remove_core(photo, mask, area, grow, keep_outside, progress, desc="Remov
 AREAS = {"512² (fast)": 512 * 512, "768² (~2x slower)": 768 * 768, "1024² (slow)": 1024 * 1024}
 
 
-def tab_extract(comp, plate, res, progress=gr.Progress()):
+def tab_extract(comp, plate, res, model="9B", progress=gr.Progress()):
     if comp is None or plate is None:
         raise gr.Error("Upload both the composite and the background plate.")
-    ENGINE.wait(progress)
+    get_engine(model, progress)
     torch.cuda.reset_peak_memory_stats(DEV)
     t = time.time()
-    rgba, gs = run_extract_core(comp, plate, AREAS[res], progress)
+    rgba, gs = run_extract_core(comp, plate, AREAS[res], progress, model=model)
     dt = time.time() - t
     a = np.asarray(rgba)[..., 3]
-    status = (f"Done in {dt:.1f} s at generation size {gs[0]}x{gs[1]} (peak VRAM {_vram():.1f} GB). "
+    status = (f"Extract-{model}: done in {dt:.1f} s at generation size {gs[0]}x{gs[1]} (peak VRAM {_vram():.1f} GB). "
               f"Opaque pixels: {100 * (a > 127).mean():.1f}%.")
     return over(rgba), rgba.getchannel("A"), save_png(rgba, "cutout"), status
 
 
 def tab_remove(ed, mask_img, res, grow, keep_outside, progress=gr.Progress()):
     photo, mask = editor_to_photo_and_mask(ed, mask_img)
-    ENGINE.wait(progress)
+    get_engine("9B", progress)
     torch.cuda.reset_peak_memory_stats(DEV)
     t = time.time()
     out, gs, used = run_remove_core(photo, mask, AREAS[res], grow, keep_outside, progress)
@@ -461,14 +511,14 @@ def tab_remove(ed, mask_img, res, grow, keep_outside, progress=gr.Progress()):
     return overlay_mask(photo, used), out, save_png(out, "removed"), status
 
 
-def tab_auto(ed, mask_img, res, grow, progress=gr.Progress()):
+def tab_auto(ed, mask_img, res, grow, model="9B", progress=gr.Progress()):
     photo, mask = editor_to_photo_and_mask(ed, mask_img)
-    ENGINE.wait(progress)
+    get_engine("9B", progress)
     torch.cuda.reset_peak_memory_stats(DEV)
     t = time.time()
     plate, gs, used = run_remove_core(photo, mask, AREAS[res], grow, True, progress, "1/2 Generating background plate:")
     t1 = time.time() - t
-    rgba, _ = run_extract_core(photo, plate, AREAS[res], progress, "2/2 Extracting:")
+    rgba, _ = run_extract_core(photo, plate, AREAS[res], progress, "2/2 Extracting:", model=model)
     dt = time.time() - t
     status = (f"Done in {dt:.1f} s (plate {t1:.1f} s + extract {dt - t1:.1f} s) at {gs[0]}x{gs[1]}, "
               f"peak VRAM {_vram():.1f} GB.")
@@ -553,8 +603,9 @@ def ex_editor(photo):
     return {"background": os.path.join(EX, photo), "layers": [], "composite": None}
 
 
-INTRO = """# FLUX.2 Klein Alpha — FLUX.2 Klein Base 9B + RGBA VAE
-Generation runs on one GPU, one request at a time (at 512²: Extract ~11 s, Remove ~40 s). Requests queue up; progress shows below the outputs.
+INTRO = """# FLUX.2 Klein Alpha — RGBA extraction with Klein 4B or 9B
+Choose Extract-4B or Extract-9B. Both return continuous transparency; object removal uses Remove-9B.
+Generation runs on one GPU, one request at a time. Switching model sizes reloads the model; requests queue up.
 """
 
 with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
@@ -562,7 +613,7 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
     with gr.Tabs():
         # ---- Extract
         with gr.Tab("Extract"):
-            gr.Markdown("**Extract-9B.** Give the picture with the object (*composite*) and the same picture "
+            gr.Markdown("**Extract-4B / Extract-9B.** Give the picture with the object (*composite*) and the same picture "
                         "**without** the object (*background plate*). Returns the object as a transparent RGBA PNG.")
             with gr.Row():
                 with gr.Column():
@@ -570,6 +621,7 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
                     ex_plate = gr.Image(label="Background plate (same background, no object)", type="pil",
                                         image_mode="RGB", height=320)
                     ex_res = gr.Radio(list(AREAS), value=list(AREAS)[0], label="Generation size (pixel area)")
+                    ex_model = gr.Radio(["4B", "9B"], value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
                     ex_btn = gr.Button("Extract", variant="primary")
                 with gr.Column():
                     ex_out = gr.Image(label="Cut-out on checkerboard", type="pil", format="png", height=380)
@@ -579,19 +631,20 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
                     ex_status = gr.Markdown()
             gr.Examples([[os.path.join(EX, f"extract_{n}_composite.png"), os.path.join(EX, f"extract_{n}_plate.png")]
                          for n in ("watercolor", "anime")], [ex_comp, ex_plate], label="Examples (benchmark holdout)")
-            ex_btn.click(tab_extract, [ex_comp, ex_plate, ex_res], [ex_out, ex_alpha, ex_file, ex_status],
+            ex_btn.click(tab_extract, [ex_comp, ex_plate, ex_res, ex_model], [ex_out, ex_alpha, ex_file, ex_status],
                          concurrency_id="gpu")
 
         # ---- Extract (auto)
         with gr.Tab("Extract (auto background)"):
-            gr.Markdown("**Remove-9B, then Extract-9B.** No plate needed: brush over the object, the remover "
+            gr.Markdown("**Remove-9B, then your chosen extractor.** No plate needed: brush over the object, the remover "
                         "paints the background plate, and the extractor cuts the object out against it. "
-                        "Takes two generations (~90 s). Quality depends on the remover (see README).")
+                        "Takes two generations. Choosing 4B also reloads the model between stages. Quality depends on the remover (see README).")
             with gr.Row():
                 with gr.Column():
                     au_ed = mask_editor("Photo — brush over the object to cut out")
                     au_mask_in = mask_upload()
                     au_res = gr.Radio(list(AREAS), value=list(AREAS)[0], label="Generation size (pixel area)")
+                    au_model = gr.Radio(["4B", "9B"], value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
                     au_grow = gr.Slider(0, 40, value=8, step=1, label="Grow brushed mask (px)")
                     au_btn = gr.Button("Extract with generated plate", variant="primary")
                 with gr.Column():
@@ -605,7 +658,7 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
                     au_status = gr.Markdown()
             gr.Examples([[ex_editor("extract_anime_composite.png"), os.path.join(EX, "auto_anime_mask.png")]],
                         [au_ed, au_mask_in], label="Example (benchmark holdout, with mask)")
-            au_btn.click(tab_auto, [au_ed, au_mask_in, au_res, au_grow], [au_mask, au_plate, au_out, au_alpha, au_file, au_status],
+            au_btn.click(tab_auto, [au_ed, au_mask_in, au_res, au_grow, au_model], [au_mask, au_plate, au_out, au_alpha, au_file, au_status],
                          concurrency_id="gpu")
 
         # ---- Remove
@@ -664,6 +717,7 @@ def main():
             print("VAE folder:   ", vae_path())
             for t in TASKS:
                 print(f"{t} LoRA:".ljust(14), lora_path(t))
+            print("extract 4B:", lora_path("extract", "4B"))
         except WeightsError as e:
             sys.exit(f"ERROR: {e}")
         return
@@ -673,6 +727,7 @@ def main():
     if not torch.cuda.is_available():
         sys.exit("A CUDA GPU is required.")
     if PRELOAD:
+        ENGINE._loading = True
         threading.Thread(target=ENGINE.load, daemon=True).start()
     demo.queue(default_concurrency_limit=1, max_size=20)
     demo.launch(server_name=args.host, server_port=args.port, share=False, show_error=True,
