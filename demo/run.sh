@@ -6,6 +6,8 @@
 #   PYTHON=/path/to/ai-toolkit/venv/bin/python ./run.sh
 #   CUDA_VISIBLE_DEVICES=1 ./run.sh                   -> use another GPU (default: GPU 0)
 #   EXTRACT_MODEL=4B ./run.sh                       -> start with the 4B extractor
+#   EXTRACT_MODEL=QWEN QWEN_PYTHON=/path/to/qwen-env/bin/python ./run.sh
+#                                                   -> start with Qwen in a separate worker
 #   PRELOAD_9B=0 ./run.sh                             -> load the 9B on the first generation request
 #   VAE_PATH=... EXTRACT_LORA=... REMOVE_LORA=... ./run.sh   -> use local weights instead of Hugging Face
 set -euo pipefail

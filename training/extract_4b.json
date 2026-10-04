@@ -26,6 +26,8 @@
   "loss": "mae",
   "alpha_edge_multiplier": 3,
   "sharpness_multiplier": 0.25,
-  "recommended_steps": 25,
-  "guidance": 4
+  "recommended_steps": 6,
+  "guidance": 4,
+  "license": "Apache-2.0",
+  "vae_license": "Apache-2.0"
 }

@@ -1,0 +1,10 @@
+# Use a separate environment from ai-toolkit: these versions provide Qwen Image 2.1.
+# Install the CUDA PyTorch wheel suitable for your GPU first.
+diffusers @ git+https://github.com/huggingface/diffusers.git@0121a91f9d419ff7234c8a5923f82c244e6f1914
+transformers==5.17.0
+accelerate>=1.10
+safetensors>=0.6
+huggingface_hub>=0.34
+numpy
+Pillow
+gradio>=6.3,<7

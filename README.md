@@ -4,6 +4,8 @@ This repository contains an RGBA (four-channel) VAE for FLUX.2 Klein, plus extra
 
 Author: Xavier Jara
 
+**New: PlateExtract, fine-tuned from Qwen Image 2.1.** The demo now offers **FLUX Klein 4B / FLUX Klein 9B / Qwen Image 2.1** in the extractor selector. Qwen weights are in their own repository: [`trmz/plate-extract-qwen-image-2.1`](https://huggingface.co/trmz/plate-extract-qwen-image-2.1). **Built with Qwen.** It uses Qwen's native RGBA VAE, with no custom FLUX VAE. See [the Qwen showcase](https://tr-mz.github.io/papers/plate-extract-qwen/) and the setup below.
+
 | Extract | Extract (auto background) |
 |---|---|
 | ![Extract tab](demo/screenshots/extract.png) | ![Extract (auto background) tab](demo/screenshots/extract_auto.png) |
@@ -40,23 +42,15 @@ export REMOVE_LORA=$PWD/weights/loras/remove_9b.safetensors
 
 Extract-4B uses [`black-forest-labs/FLUX.2-klein-base-4B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4B). The 9B extractor and remover use [`black-forest-labs/FLUX.2-klein-base-9B`](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B). It is gated, so first accept its licence on its Hugging Face page and log in with `huggingface-cli login`. The demo downloads it on first start, which takes a while.
 
-### Licence of the weights
+### Licences
 
-These weights are for **research and non-commercial use only**.
-
-- **VAE:** my RGBA VAE was fine-tuned from the FLUX.2-dev VAE, modified for four-channel input and output. FLUX.2-dev is released under the [FLUX Non-Commercial License](https://huggingface.co/black-forest-labs/FLUX.2-dev/blob/main/LICENSE.md), so the VAE is too.
-- **9B LoRAs:** Extract-9B and Remove-9B were trained on FLUX.2 Klein Base 9B, which is also under the FLUX Non-Commercial License.
-- The licence rights come from Black Forest Labs, not from me. This is an independent experiment, not a Black Forest Labs product, and the weights come with no warranty.
-
-The required attribution notice for these weights:
-
-> This FLUX Model is licensed by Black Forest Labs Inc. under the FLUX Non-Commercial License. Copyright Black Forest Labs Inc. IN NO EVENT SHALL BLACK FOREST LABS INC. BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH USE OF THIS MODEL.
-
-Klein Base **4B** itself is [Apache 2.0](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-4B). Extract-4B still uses the shared RGBA VAE derived from FLUX.2-dev, which remains non-commercial. This bundled RGBA release is for non-commercial research; choosing 4B does not make the complete pipeline commercially licensed.
+- **RGBA VAE and Extract-4B:** Apache 2.0. BFL explicitly releases the [FLUX.2 VAE under Apache 2.0](https://bfl.ai/blog/flux-2), separately from the FLUX.2-dev transformer.
+- **Extract-9B and Remove-9B:** [FLUX Non-Commercial License](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/blob/main/LICENSE.md).
+- **PlateExtract (Qwen):** [Qwen Research License](https://huggingface.co/trmz/plate-extract-qwen-image-2.1/blob/main/LICENSE).
 
 ## Quick start
 
-You need Linux, Python 3.10+ and one NVIDIA GPU. The 9B path needs about **12 GB of VRAM**. Extract-4B uses less memory during generation (see its measured results below); loading the text encoder temporarily uses additional memory. Both sizes use fp8 (qfloat8) transformer and text encoder weights, as during training. At 512² on a 16 GB card, Extract takes about **11 s** (6 steps, which scores the same as 25 on my test set) and Remove about **40 s** (30 steps).
+You need Linux, Python 3.10+ and one NVIDIA GPU. The 9B path needs about **12 GB of VRAM**. Extract-4B uses less memory during generation; loading the text encoder temporarily uses additional memory. Both FLUX sizes use fp8 (qfloat8) transformer and text encoder weights, as during training. At 512² on a 16 GB card, Extract takes about **11 s** for 9B or **5.5 s** for 4B (6 steps) and Remove about **40 s** (30 steps).
 
 ```bash
 # 1. this repo, and ai-toolkit at the upstream commit the patch is made against, with my changes applied
@@ -83,17 +77,17 @@ PYTHON=$AITK_PATH/venv/bin/python flux2-klein-alpha/demo/run.sh
 These commands assume `flux2-klein-alpha` (this repo) and `ai-toolkit` are side by side. Then open http://127.0.0.1:7860.
 
 - If `AITK_PATH` is not set, the demo looks for `ai-toolkit/` inside this repo and then next to it.
-- The selected model loads at startup (9B by default; `EXTRACT_MODEL=4B` starts with 4B). Switching sizes in the UI unloads the previous model and loads the new one. The VAE tab works during loading, and generation requests wait until loading finishes.
+- The selected model loads at startup (9B by default; `EXTRACT_MODEL=4B` starts with 4B). Switching sizes in the UI unloads the previous model and loads the new one. Generation requests wait until loading finishes.
 - `run.sh` uses GPU 0 unless you set `CUDA_VISIBLE_DEVICES`. The demo listens on `127.0.0.1` by default. To reach it from other machines, run `run.sh --host 0.0.0.0 --port 7860`. The demo has no authentication, so only do this on a network you trust.
 - `PRELOAD_9B=0` loads the selected model on its first generation request instead of at startup.
-- `run.sh --check-weights` only resolves or downloads the five weight files and prints their paths. It needs no GPU and no ai-toolkit.
+- `run.sh --check-weights` only resolves or downloads the FLUX and Qwen adapter files and prints their paths. It needs no GPU and no ai-toolkit.
 - One generation runs at a time. Other requests wait in a queue, and a progress bar shows the current step.
 
 ## Extract-4B release
 
 The new **rank-32 LoRA** targets the attention and MLP linear projections across the Klein Base 4B transformer (80 adapted modules). It was trained from the 4B base using the extraction recipe from Extract-9B: 2,039 composite/background/RGBA triplets, learning rate 5e-5, AdamW8bit, accumulation 3, 512/768 training resolutions, MAE with alpha-edge and sharpness losses. The released checkpoint is **step 11,250** and uses the same 58K RGBA VAE.
 
-Use **25 inference steps**, guidance **4**, and prompt **`Foreground`** for Extract-4B. The 9B extractor keeps its existing 6-step setting. The 9B LoRA cannot be loaded on the 4B base. Recipe and checkpoint SHA-256: [`training/extract_4b.json`](training/extract_4b.json).
+Use **6 inference steps**, guidance **4**, and prompt **`Foreground`** for both FLUX extractors. The 9B LoRA cannot be loaded on the 4B base.
 
 In the demo, choose **4B** under *Extractor model*. To start directly with 4B:
 
@@ -103,13 +97,38 @@ EXTRACT_MODEL=4B PYTHON=$AITK_PATH/venv/bin/python flux2-klein-alpha/demo/run.sh
 
 Removal continues to use **Remove-9B**. The auto-background tab supports either extractor and reloads the base model between stages when 4B is selected.
 
-Validation on **20 held-out objects** at 512² area, 25 steps, guidance 4, seed 42: mean alpha-mask **IoU 0.922**, mean alpha error **0.0093**. On an RTX 5070 Ti 16 GB with fp8 weights, extraction averaged **22.7 s** and peaked at **4.5 GiB** allocated GPU memory (model loading excluded). This is a small test set. Full per-image results: [`training/extract_4b_validation.json`](training/extract_4b_validation.json).
-
 The new 4B example outputs are [`extract_watercolor_4b.png`](demo/examples/extract_watercolor_4b.png) and [`extract_anime_4b.png`](demo/examples/extract_anime_4b.png).
+
+## PlateExtract: Qwen Image 2.1 release
+
+**Built with Qwen.** This rank-32 extraction LoRA was trained for 15,000 steps on composite + clean background → RGBA triplets. It uses Qwen Image 2.1's **native RGBA VAE**, with no custom VAE, and runs in **four inference steps**. This is separate from the earlier mask-conditioned Qwen experiment in the FLUX paper.
+
+Download [`trmz/plate-extract-qwen-image-2.1`](https://huggingface.co/trmz/plate-extract-qwen-image-2.1), file `loras/extract.safetensors`. In the demo, choose **Qwen Image 2.1**.
+
+### Qwen inference setup
+
+Use a separate Python environment for Qwen. The demo starts a persistent worker using `QWEN_PYTHON`, so ai-toolkit's existing environment stays usable for FLUX. One CUDA GPU is used; the text encoder and transformer alternate between CPU and GPU. Tested on an RTX 5070 Ti 16 GB; substantial system RAM is also needed for the offloaded weights (tested with 64 GB).
+
+```bash
+cd flux2-klein-alpha
+python3 -m venv qwen-env
+# Install a CUDA PyTorch build suitable for your GPU in this environment first.
+qwen-env/bin/pip install -r demo/requirements-qwen.txt
+
+# Standalone Qwen extraction; no ai-toolkit needed:
+qwen-env/bin/python demo/qwen_extract.py \
+  --composite picture.png --background clean_background.png --output extracted.png
+
+# Existing ai-toolkit demo, with all three extractor choices:
+QWEN_PYTHON=$PWD/qwen-env/bin/python EXTRACT_MODEL=QWEN \
+  PYTHON=$AITK_PATH/venv/bin/python demo/run.sh
+```
+
+On first use, the worker downloads the adapter, native VAE/text encoder, and the **pinned** full turbo transformer. It does not use the newer Viggle six-step adapter: loading a different turbo version would change the base under this extraction LoRA. To use local adapter weights, set `QWEN_EXTRACT_LORA=/path/to/extract.safetensors`. `QWEN_HF_REPO` and `QWEN_HF_REVISION` optionally override its repository/revision. The auto-background tab uses Remove-9B first, then Qwen; it requires the existing FLUX setup too.
 
 ## What each tab does
 
-**Extract** (choose Extract-4B or Extract-9B). This tab cuts an object out as a transparent PNG.
+**Extract** (choose FLUX Klein 4B, FLUX Klein 9B, or Qwen Image 2.1). This tab cuts an object out as a transparent PNG.
 - *Composite*: the picture with the object in it.
 - *Background plate*: the **same picture without the object**, with the same framing and size. The model compares the two images to decide what the object is, so the plate must match the composite everywhere except where the object is.
 - Output: the object as an RGBA PNG. The demo shows it on a checkerboard next to its alpha matte, with a download button.
@@ -132,15 +151,13 @@ The new 4B example outputs are [`extract_watercolor_4b.png`](demo/examples/extra
 ## Known limitations
 
 - Remove-9B was trained on real photos (the OBER dataset from ObjectClear), and it works well on photos. On synthetic or graphic images it removes the object but often fills the hole with odd content. On the anime holdout example it left a purple smear. The auto-background extraction still gave a clean cut-out on that example (IoU 0.987, against 0.988 with the true plate). Still, check the generated plate.
-- Both extractors need a plate that matches the composite pixel for pixel outside the object. A plate from a different photo, or one that is shifted or rescaled, will give a poor cut-out.
-- I have only tested the 512² generation size. The 768² and 1024² options are slower, and I have not tested them.
 - The brush in Gradio's image editor needs WebGL. If the editor looks blank, use a browser with hardware acceleration, or upload a mask instead.
 - Very wide or tall images are padded to at most 4:1, because FLUX.2's reference encoder rejects more extreme aspect ratios.
 - The screenshots come from an earlier build of the demo, so their page title differs.
 
 ## Example images
 
-The images in `demo/examples/` come from my training and evaluation data. **Their licences still need review before this repository is made public.**
+The images in `demo/examples/` come from my training and evaluation data.
 
 | File | Where it comes from |
 |---|---|
@@ -162,5 +179,6 @@ The images in `demo/examples/` come from my training and evaluation data. **Thei
 
 - **Code** (the demo and my changes in `ai-toolkit-rgba/`): [MIT](LICENSE), © 2026 Xavier Jara.
 - **ai-toolkit:** the patch modifies ai-toolkit, which is MIT-licensed, © 2024 Ostris, LLC. Its licence is kept in [`ai-toolkit-rgba/LICENSE-ai-toolkit`](ai-toolkit-rgba/LICENSE-ai-toolkit).
-- **Weights** on Hugging Face: FLUX Non-Commercial License (see above). The MIT licence does not apply to them.
+- **RGBA VAE and Extract-4B weights:** Apache 2.0. **9B adapters:** FLUX Non-Commercial License.
+- **PlateExtract weights, fine-tuned from Qwen Image 2.1:** Qwen Research License, available in the separate HF repository. Built with Qwen. The code licence does not change the weight licence.
 - **Example images** in `demo/examples/`: not covered by the MIT licence (see their sources above).

@@ -1,0 +1,257 @@
+{
+  "checkpoint_step": 11250,
+  "model": "Extract-4B",
+  "steps": 6,
+  "guidance": 4,
+  "seed": 42,
+  "generation_area": 262144,
+  "hardware": "NVIDIA GeForce RTX 5070 Ti 16 GB",
+  "quantization": "qfloat8",
+  "count": 20,
+  "mean_iou": 0.9255232076814439,
+  "mean_alpha_mae": 0.008622168679721653,
+  "mean_seconds": 5.529910099541302,
+  "peak_vram_gib": 4.5744194984436035,
+  "items": [
+    {
+      "id": "fg_opaque_v1/0000_papercut_art_00007",
+      "iou": 0.8151884738969699,
+      "alpha_mae": 0.026425819844007492,
+      "seconds": 5.749391198158264,
+      "peak_vram_gib": 4.567203521728516,
+      "generation_size": [
+        512,
+        512
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v1/0002_cartoon_00183",
+      "iou": 0.8990303967640235,
+      "alpha_mae": 0.03060467541217804,
+      "seconds": 5.507273777155206,
+      "peak_vram_gib": 4.559581279754639,
+      "generation_size": [
+        416,
+        624
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v1/0003_anime_00308",
+      "iou": 0.9482142857142857,
+      "alpha_mae": 0.0034698774106800556,
+      "seconds": 5.614972196985036,
+      "peak_vram_gib": 4.570720672607422,
+      "generation_size": [
+        592,
+        448
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v1/0004_line_draw_00016",
+      "iou": 0.9166997887161894,
+      "alpha_mae": 0.014902578666806221,
+      "seconds": 5.615435568848625,
+      "peak_vram_gib": 4.5744194984436035,
+      "generation_size": [
+        576,
+        464
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v1/0005_kid_crayon_drawing_00016",
+      "iou": 0.9628545145951829,
+      "alpha_mae": 0.012940658256411552,
+      "seconds": 5.457387133035809,
+      "peak_vram_gib": 4.559589862823486,
+      "generation_size": [
+        416,
+        624
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v2/0000_pixel_art_00031",
+      "iou": 0.988368611718212,
+      "alpha_mae": 0.0067044333554804325,
+      "seconds": 5.5503888158127666,
+      "peak_vram_gib": 4.573617935180664,
+      "generation_size": [
+        640,
+        416
+      ],
+      "alpha_levels": 252
+    },
+    {
+      "id": "fg_opaque_v2/0001_Pokemon_00025",
+      "iou": 0.9356109572176055,
+      "alpha_mae": 0.014306914061307907,
+      "seconds": 5.419108764035627,
+      "peak_vram_gib": 4.552552223205566,
+      "generation_size": [
+        592,
+        432
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v2/0002_watercolor_painting_00018",
+      "iou": 0.9866300440279517,
+      "alpha_mae": 0.002961071440950036,
+      "seconds": 5.494318994926289,
+      "peak_vram_gib": 4.556779861450195,
+      "generation_size": [
+        448,
+        576
+      ],
+      "alpha_levels": 249
+    },
+    {
+      "id": "fg_opaque_v2/0003_line_draw_00032",
+      "iou": 0.992765979434713,
+      "alpha_mae": 0.0036274876911193132,
+      "seconds": 5.470210131956264,
+      "peak_vram_gib": 4.558661937713623,
+      "generation_size": [
+        704,
+        368
+      ],
+      "alpha_levels": 254
+    },
+    {
+      "id": "fg_opaque_v2/hard_0000_metal_textured_00027",
+      "iou": 0.9898598904018094,
+      "alpha_mae": 0.008020157925784588,
+      "seconds": 5.49466644693166,
+      "peak_vram_gib": 4.570740699768066,
+      "generation_size": [
+        592,
+        448
+      ],
+      "alpha_levels": 252
+    },
+    {
+      "id": "fg_opaque_v2/hard_0001_pixel_art_00022",
+      "iou": 0.979757085020243,
+      "alpha_mae": 0.0020369626581668854,
+      "seconds": 5.605098071973771,
+      "peak_vram_gib": 4.568202972412109,
+      "generation_size": [
+        400,
+        656
+      ],
+      "alpha_levels": 241
+    },
+    {
+      "id": "fg_opaque_v2/hard_0002_Pokemon_00401",
+      "iou": 0.9709963745468183,
+      "alpha_mae": 0.005014900583773851,
+      "seconds": 5.4404712759424,
+      "peak_vram_gib": 4.560080528259277,
+      "generation_size": [
+        464,
+        560
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "fg_opaque_v2/hard_0004_wood_carving_00021",
+      "iou": 0.9784221787226294,
+      "alpha_mae": 0.004155348986387253,
+      "seconds": 5.477941232966259,
+      "peak_vram_gib": 4.563839912414551,
+      "generation_size": [
+        496,
+        528
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/0000_anime_00551",
+      "iou": 0.5513819985825655,
+      "alpha_mae": 0.002138851210474968,
+      "seconds": 5.5955679109320045,
+      "peak_vram_gib": 4.570752143859863,
+      "generation_size": [
+        448,
+        592
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/0001_melting_gold_00042",
+      "iou": 0.7811240605598518,
+      "alpha_mae": 0.011347503401339054,
+      "seconds": 5.555345530156046,
+      "peak_vram_gib": 4.568368911743164,
+      "generation_size": [
+        688,
+        384
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/0002_line_draw_00019",
+      "iou": 0.971597849987784,
+      "alpha_mae": 0.0021923144813627005,
+      "seconds": 5.581401020986959,
+      "peak_vram_gib": 4.570757865905762,
+      "generation_size": [
+        592,
+        448
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/hard_0000_melting_silver_00012",
+      "iou": 0.9598897131228254,
+      "alpha_mae": 0.0038671812508255243,
+      "seconds": 5.463588621933013,
+      "peak_vram_gib": 4.559624195098877,
+      "generation_size": [
+        416,
+        624
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/hard_0003_steampunk_00022",
+      "iou": 0.9979638302204616,
+      "alpha_mae": 0.002682057674974203,
+      "seconds": 5.416589037980884,
+      "peak_vram_gib": 4.559627056121826,
+      "generation_size": [
+        416,
+        624
+      ],
+      "alpha_levels": 221
+    },
+    {
+      "id": "remover_mixed_v1/hard_0004_anime_00507",
+      "iou": 0.9848833141772025,
+      "alpha_mae": 0.00636817142367363,
+      "seconds": 5.58901922008954,
+      "peak_vram_gib": 4.570766448974609,
+      "generation_size": [
+        448,
+        592
+      ],
+      "alpha_levels": 256
+    },
+    {
+      "id": "remover_mixed_v1/hard_0007_melting_gold_00024",
+      "iou": 0.8992248062015504,
+      "alpha_mae": 0.008676407858729362,
+      "seconds": 5.500027040019631,
+      "peak_vram_gib": 4.559632778167725,
+      "generation_size": [
+        416,
+        624
+      ],
+      "alpha_levels": 256
+    }
+  ]
+}

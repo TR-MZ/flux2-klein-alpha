@@ -1,0 +1,250 @@
+{
+  "checkpoint_step": 15000,
+  "count": 24,
+  "steps": 4,
+  "seed": 0,
+  "guidance": 1,
+  "source": "Saved training evaluation outputs, no post-processing",
+  "alpha_units": "0 to 1",
+  "rgb_units": "0 to 1; opaque RGB evaluated where ground-truth alpha > 0.95",
+  "note": "24 validation cases inspected repeatedly during training; not a new independent test set",
+  "mean": {
+    "iou": 0.9431239518392847,
+    "alpha_mae": 0.011971850394426534,
+    "opaque_rgb_mae": 0.030235856674456347,
+    "composite_black_rgb_mae": 0.006603612292868395,
+    "composite_white_rgb_mae": 0.01059373450698331
+  },
+  "items": [
+    {
+      "id": "remover_mixed_v1/0000_anime_00551",
+      "iou": 0.6356521739130435,
+      "alpha_mae": 0.008768987841904163,
+      "opaque_rgb_mae": 0.08639601618051529,
+      "composite_black_rgb_mae": 0.0029195474926382303,
+      "composite_white_rgb_mae": 0.0061037554405629635
+    },
+    {
+      "id": "remover_mixed_v1/0001_melting_gold_00042",
+      "iou": 0.7886305311455012,
+      "alpha_mae": 0.017277710139751434,
+      "opaque_rgb_mae": 0.07341253012418747,
+      "composite_black_rgb_mae": 0.008022659458220005,
+      "composite_white_rgb_mae": 0.013806404545903206
+    },
+    {
+      "id": "remover_mixed_v1/0002_line_draw_00019",
+      "iou": 0.9735973597359736,
+      "alpha_mae": 0.008203444071114063,
+      "opaque_rgb_mae": 0.02878231182694435,
+      "composite_black_rgb_mae": 0.003795007010921836,
+      "composite_white_rgb_mae": 0.006262959446758032
+    },
+    {
+      "id": "remover_mixed_v1/0003_furry_00007",
+      "iou": 0.8828413284132841,
+      "alpha_mae": 0.008620482869446278,
+      "opaque_rgb_mae": 0.0684618353843689,
+      "composite_black_rgb_mae": 0.0032258720602840185,
+      "composite_white_rgb_mae": 0.006894217804074287
+    },
+    {
+      "id": "remover_mixed_v1/hard_0000_melting_silver_00012",
+      "iou": 0.9705142612511372,
+      "alpha_mae": 0.011903953738510609,
+      "opaque_rgb_mae": 0.01804581843316555,
+      "composite_black_rgb_mae": 0.00457285949960351,
+      "composite_white_rgb_mae": 0.00943860225379467
+    },
+    {
+      "id": "remover_mixed_v1/hard_0003_steampunk_00022",
+      "iou": 0.9985255801741028,
+      "alpha_mae": 0.0105444872751832,
+      "opaque_rgb_mae": 0.013219312764704227,
+      "composite_black_rgb_mae": 0.007828105241060257,
+      "composite_white_rgb_mae": 0.011911395005881786
+    },
+    {
+      "id": "remover_mixed_v1/hard_0004_anime_00507",
+      "iou": 0.9916580462056709,
+      "alpha_mae": 0.008499148301780224,
+      "opaque_rgb_mae": 0.016035009175539017,
+      "composite_black_rgb_mae": 0.007144296076148748,
+      "composite_white_rgb_mae": 0.008721153251826763
+    },
+    {
+      "id": "remover_mixed_v1/hard_0007_melting_gold_00024",
+      "iou": 0.9093813534708104,
+      "alpha_mae": 0.015252608805894852,
+      "opaque_rgb_mae": 0.03140034154057503,
+      "composite_black_rgb_mae": 0.00554805900901556,
+      "composite_white_rgb_mae": 0.012002948671579361
+    },
+    {
+      "id": "fg_opaque_v2/0000_pixel_art_00031",
+      "iou": 0.9955839942321557,
+      "alpha_mae": 0.006835908629000187,
+      "opaque_rgb_mae": 0.007475219201296568,
+      "composite_black_rgb_mae": 0.003976139239966869,
+      "composite_white_rgb_mae": 0.006305202376097441
+    },
+    {
+      "id": "fg_opaque_v2/0001_Pokemon_00025",
+      "iou": 0.9580963587631561,
+      "alpha_mae": 0.015062429010868073,
+      "opaque_rgb_mae": 0.02618749812245369,
+      "composite_black_rgb_mae": 0.007897449657320976,
+      "composite_white_rgb_mae": 0.012062223628163338
+    },
+    {
+      "id": "fg_opaque_v2/0002_watercolor_painting_00018",
+      "iou": 0.9928299350212861,
+      "alpha_mae": 0.006805665325373411,
+      "opaque_rgb_mae": 0.00864170491695404,
+      "composite_black_rgb_mae": 0.0031482516787946224,
+      "composite_white_rgb_mae": 0.005549141205847263
+    },
+    {
+      "id": "fg_opaque_v2/0003_line_draw_00032",
+      "iou": 0.9849858395327723,
+      "alpha_mae": 0.010042506270110607,
+      "opaque_rgb_mae": 0.032330431044101715,
+      "composite_black_rgb_mae": 0.012106177397072315,
+      "composite_white_rgb_mae": 0.013776976615190506
+    },
+    {
+      "id": "fg_opaque_v2/hard_0000_metal_textured_00027",
+      "iou": 0.9890864188563439,
+      "alpha_mae": 0.009398343041539192,
+      "opaque_rgb_mae": 0.010004856623709202,
+      "composite_black_rgb_mae": 0.004934545140713453,
+      "composite_white_rgb_mae": 0.007939811795949936
+    },
+    {
+      "id": "fg_opaque_v2/hard_0001_pixel_art_00022",
+      "iou": 0.9839143895544488,
+      "alpha_mae": 0.007757258601486683,
+      "opaque_rgb_mae": 0.022467274218797684,
+      "composite_black_rgb_mae": 0.0035805036313831806,
+      "composite_white_rgb_mae": 0.006650273688137531
+    },
+    {
+      "id": "fg_opaque_v2/hard_0002_Pokemon_00401",
+      "iou": 0.9782930178514841,
+      "alpha_mae": 0.009331882931292057,
+      "opaque_rgb_mae": 0.010815454646945,
+      "composite_black_rgb_mae": 0.004944507032632828,
+      "composite_white_rgb_mae": 0.0060190074145793915
+    },
+    {
+      "id": "fg_opaque_v2/hard_0003_melting_gold_00015",
+      "iou": 0.9839381120118652,
+      "alpha_mae": 0.009894133545458317,
+      "opaque_rgb_mae": 0.037871889770030975,
+      "composite_black_rgb_mae": 0.014059104025363922,
+      "composite_white_rgb_mae": 0.012182291597127914
+    },
+    {
+      "id": "fg_opaque_v2/hard_0004_wood_carving_00021",
+      "iou": 0.9864241107792561,
+      "alpha_mae": 0.009078112430870533,
+      "opaque_rgb_mae": 0.016262119635939598,
+      "composite_black_rgb_mae": 0.00417383061721921,
+      "composite_white_rgb_mae": 0.007828562520444393
+    },
+    {
+      "id": "fg_opaque_v2/hard_0005_neon_graffiti_00034",
+      "iou": 0.9803063457330415,
+      "alpha_mae": 0.008610867895185947,
+      "opaque_rgb_mae": 0.04521917551755905,
+      "composite_black_rgb_mae": 0.006142322439700365,
+      "composite_white_rgb_mae": 0.009458750486373901
+    },
+    {
+      "id": "fg_opaque_v1/0000_papercut_art_00007",
+      "iou": 0.8446031746031746,
+      "alpha_mae": 0.026014501228928566,
+      "opaque_rgb_mae": 0.025187036022543907,
+      "composite_black_rgb_mae": 0.015281115658581257,
+      "composite_white_rgb_mae": 0.01666775904595852
+    },
+    {
+      "id": "fg_opaque_v1/0001_3D_00101",
+      "iou": 0.9914373858842788,
+      "alpha_mae": 0.009154810570180416,
+      "opaque_rgb_mae": 0.02537604607641697,
+      "composite_black_rgb_mae": 0.004221262875944376,
+      "composite_white_rgb_mae": 0.007693346124142408
+    },
+    {
+      "id": "fg_opaque_v1/0002_cartoon_00183",
+      "iou": 0.9176380339401651,
+      "alpha_mae": 0.03000008873641491,
+      "opaque_rgb_mae": 0.03838568180799484,
+      "composite_black_rgb_mae": 0.01076577976346016,
+      "composite_white_rgb_mae": 0.032128382474184036
+    },
+    {
+      "id": "fg_opaque_v1/0003_anime_00308",
+      "iou": 0.959604674876461,
+      "alpha_mae": 0.009552502073347569,
+      "opaque_rgb_mae": 0.04123817756772041,
+      "composite_black_rgb_mae": 0.005273730494081974,
+      "composite_white_rgb_mae": 0.0076982746832072735
+    },
+    {
+      "id": "fg_opaque_v1/0004_line_draw_00016",
+      "iou": 0.9705833471829816,
+      "alpha_mae": 0.01122469361871481,
+      "opaque_rgb_mae": 0.012033367529511452,
+      "composite_black_rgb_mae": 0.0038944969419389963,
+      "composite_white_rgb_mae": 0.009108108468353748
+    },
+    {
+      "id": "fg_opaque_v1/0005_kid_crayon_drawing_00016",
+      "iou": 0.9668490710104353,
+      "alpha_mae": 0.01948988251388073,
+      "opaque_rgb_mae": 0.030411452054977417,
+      "composite_black_rgb_mae": 0.011031072586774826,
+      "composite_white_rgb_mae": 0.01804007962346077
+    }
+  ],
+  "shared_20_comparison": {
+    "count": 20,
+    "caveat": "Released 6-step Flux outputs scored at original input size; Qwen 4-step outputs scored at generation size. Different seeds, samplers and VAEs. Descriptive comparison, not a controlled VAE experiment.",
+    "flux_4b": {
+      "iou": 0.9255232076814439,
+      "alpha_mae": 0.008622168296835573,
+      "opaque_rgb_mae": 0.04154901359404527,
+      "composite_black_rgb_mae": 0.0071804182299132465,
+      "composite_white_rgb_mae": 0.009897280691069986
+    },
+    "qwen": {
+      "iou": 0.939822583605018,
+      "alpha_mae": 0.012552205729298294,
+      "opaque_rgb_mae": 0.027436580671928824,
+      "composite_black_rgb_mae": 0.006541906681377441,
+      "composite_white_rgb_mae": 0.010901051107794046
+    },
+    "flux_steps": 6,
+    "qwen_steps": 4
+  },
+  "shared_20_comparison_25step_reference": {
+    "count": 20,
+    "caveat": "Existing Flux outputs scored at original input size; Qwen outputs scored at generation size. Different seeds, samplers and VAEs. Descriptive comparison, not a controlled VAE experiment.",
+    "flux_4b": {
+      "iou": 0.9224558793871326,
+      "alpha_mae": 0.009313965518958866,
+      "opaque_rgb_mae": 0.04475277625024319,
+      "composite_black_rgb_mae": 0.007699190886341967,
+      "composite_white_rgb_mae": 0.010805605252971872
+    },
+    "qwen": {
+      "iou": 0.939822583605018,
+      "alpha_mae": 0.012552205729298294,
+      "opaque_rgb_mae": 0.027436580671928824,
+      "composite_black_rgb_mae": 0.006541906681377441,
+      "composite_white_rgb_mae": 0.010901051107794046
+    }
+  }
+}

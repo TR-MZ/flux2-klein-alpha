@@ -17,4 +17,5 @@ __pycache__/
 logs/
 .venv/
 venv/
+qwen-env/
 .DS_Store

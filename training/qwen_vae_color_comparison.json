@@ -1,0 +1,418 @@
+{
+  "count": 24,
+  "generation_area": 262144,
+  "method": "Same 24 RGBA ground truths, Lanczos resizing, posterior mode encode/decode, bf16; no diffusion or LoRA; equal input dimensions",
+  "rgb_units": "0 to 1; opaque RGB uses ground-truth alpha > 0.95",
+  "models": [
+    {
+      "model": "qwen_native",
+      "count": 24,
+      "mean": {
+        "iou": 0.9694509203581675,
+        "alpha_mae": 0.009476237212462971,
+        "opaque_rgb_mae": 0.025072772094669443,
+        "composite_black_rgb_mae": 0.005265098103942971,
+        "composite_white_rgb_mae": 0.008661489254639795
+      },
+      "items": [
+        {
+          "id": "remover_mixed_v1_holdout/0000_anime_00551.png",
+          "iou": 0.805702217529039,
+          "alpha_mae": 0.008034438826143742,
+          "opaque_rgb_mae": 0.059681862592697144,
+          "composite_black_rgb_mae": 0.002662897342815995,
+          "composite_white_rgb_mae": 0.005578937940299511
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0001_melting_gold_00042.png",
+          "iou": 0.8937644341801386,
+          "alpha_mae": 0.01217763964086771,
+          "opaque_rgb_mae": 0.060795679688453674,
+          "composite_black_rgb_mae": 0.005862133111804724,
+          "composite_white_rgb_mae": 0.010410868562757969
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0002_line_draw_00019.png",
+          "iou": 0.9862933228901508,
+          "alpha_mae": 0.0076529765501618385,
+          "opaque_rgb_mae": 0.02643618918955326,
+          "composite_black_rgb_mae": 0.0034676878713071346,
+          "composite_white_rgb_mae": 0.0059220860712230206
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0003_furry_00007.png",
+          "iou": 0.9742874845105328,
+          "alpha_mae": 0.0078046019189059734,
+          "opaque_rgb_mae": 0.056651514023542404,
+          "composite_black_rgb_mae": 0.002984474180266261,
+          "composite_white_rgb_mae": 0.006021149922162294
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0000_melting_silver_00012.png",
+          "iou": 0.9890678011739997,
+          "alpha_mae": 0.010795322246849537,
+          "opaque_rgb_mae": 0.015106325969099998,
+          "composite_black_rgb_mae": 0.004061431158334017,
+          "composite_white_rgb_mae": 0.008578208275139332
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0003_steampunk_00022.png",
+          "iou": 0.9985460860434356,
+          "alpha_mae": 0.009295073337852955,
+          "opaque_rgb_mae": 0.008517044596374035,
+          "composite_black_rgb_mae": 0.005513607524335384,
+          "composite_white_rgb_mae": 0.009751602075994015
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0004_anime_00507.png",
+          "iou": 0.9931453270222611,
+          "alpha_mae": 0.008453785441815853,
+          "opaque_rgb_mae": 0.012360791675746441,
+          "composite_black_rgb_mae": 0.005903824232518673,
+          "composite_white_rgb_mae": 0.007957098074257374
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0007_melting_gold_00024.png",
+          "iou": 0.9378342245989305,
+          "alpha_mae": 0.013766438700258732,
+          "opaque_rgb_mae": 0.023783279582858086,
+          "composite_black_rgb_mae": 0.004729825537651777,
+          "composite_white_rgb_mae": 0.010822905227541924
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0000_pixel_art_00031.png",
+          "iou": 0.9990541250656858,
+          "alpha_mae": 0.006273478735238314,
+          "opaque_rgb_mae": 0.0042929211631417274,
+          "composite_black_rgb_mae": 0.0029888388235121965,
+          "composite_white_rgb_mae": 0.005246603861451149
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0001_Pokemon_00025.png",
+          "iou": 0.9821940646882295,
+          "alpha_mae": 0.011509775184094906,
+          "opaque_rgb_mae": 0.021069033071398735,
+          "composite_black_rgb_mae": 0.00585164362564683,
+          "composite_white_rgb_mae": 0.00950486771762371
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0002_watercolor_painting_00018.png",
+          "iou": 0.9959625736990515,
+          "alpha_mae": 0.006527862977236509,
+          "opaque_rgb_mae": 0.008194208145141602,
+          "composite_black_rgb_mae": 0.0030486376490443945,
+          "composite_white_rgb_mae": 0.005288749933242798
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0003_line_draw_00032.png",
+          "iou": 0.9974926354730425,
+          "alpha_mae": 0.0067242104560136795,
+          "opaque_rgb_mae": 0.03083845227956772,
+          "composite_black_rgb_mae": 0.010089254938066006,
+          "composite_white_rgb_mae": 0.011601356789469719
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0000_metal_textured_00027.png",
+          "iou": 0.9962365004908912,
+          "alpha_mae": 0.008510774001479149,
+          "opaque_rgb_mae": 0.00953896064311266,
+          "composite_black_rgb_mae": 0.0045694587752223015,
+          "composite_white_rgb_mae": 0.007081145886331797
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0001_pixel_art_00022.png",
+          "iou": 0.9813610459269192,
+          "alpha_mae": 0.007762015797197819,
+          "opaque_rgb_mae": 0.020214905962347984,
+          "composite_black_rgb_mae": 0.0034030731767416,
+          "composite_white_rgb_mae": 0.006572766695171595
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0002_Pokemon_00401.png",
+          "iou": 0.9862919079751341,
+          "alpha_mae": 0.008841642178595066,
+          "opaque_rgb_mae": 0.008291712030768394,
+          "composite_black_rgb_mae": 0.004217713139951229,
+          "composite_white_rgb_mae": 0.00565163791179657
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0003_melting_gold_00015.png",
+          "iou": 0.9968695473673407,
+          "alpha_mae": 0.007011611945927143,
+          "opaque_rgb_mae": 0.03261618688702583,
+          "composite_black_rgb_mae": 0.010099084116518497,
+          "composite_white_rgb_mae": 0.011110454797744751
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0004_wood_carving_00021.png",
+          "iou": 0.9942720763723151,
+          "alpha_mae": 0.008495958521962166,
+          "opaque_rgb_mae": 0.012957222759723663,
+          "composite_black_rgb_mae": 0.0037100387271493673,
+          "composite_white_rgb_mae": 0.006993237882852554
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0005_neon_graffiti_00034.png",
+          "iou": 0.9860590489828581,
+          "alpha_mae": 0.008347376249730587,
+          "opaque_rgb_mae": 0.04171682894229889,
+          "composite_black_rgb_mae": 0.005732180550694466,
+          "composite_white_rgb_mae": 0.008980490267276764
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0000_papercut_art_00007.png",
+          "iou": 0.9546015020737586,
+          "alpha_mae": 0.012946334667503834,
+          "opaque_rgb_mae": 0.022316494956612587,
+          "composite_black_rgb_mae": 0.007912292145192623,
+          "composite_white_rgb_mae": 0.01038031280040741
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0001_3D_00101.png",
+          "iou": 0.9930166719094055,
+          "alpha_mae": 0.007940610870718956,
+          "opaque_rgb_mae": 0.0216258242726326,
+          "composite_black_rgb_mae": 0.0036635170690715313,
+          "composite_white_rgb_mae": 0.0066146827302873135
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0002_cartoon_00183.png",
+          "iou": 0.8969478524884146,
+          "alpha_mae": 0.01835588738322258,
+          "opaque_rgb_mae": 0.03427207097411156,
+          "composite_black_rgb_mae": 0.009372580796480179,
+          "composite_white_rgb_mae": 0.020185396075248718
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0003_anime_00308.png",
+          "iou": 0.9802168236131993,
+          "alpha_mae": 0.008441809564828873,
+          "opaque_rgb_mae": 0.033005744218826294,
+          "composite_black_rgb_mae": 0.004344520624727011,
+          "composite_white_rgb_mae": 0.006950597278773785
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0004_line_draw_00016.png",
+          "iou": 0.9774883474926449,
+          "alpha_mae": 0.010428656823933125,
+          "opaque_rgb_mae": 0.008787340484559536,
+          "composite_black_rgb_mae": 0.003462087130174041,
+          "composite_white_rgb_mae": 0.00819964800029993
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0005_kid_crayon_drawing_00016.png",
+          "iou": 0.9701164670286401,
+          "alpha_mae": 0.011331411078572273,
+          "opaque_rgb_mae": 0.02867593616247177,
+          "composite_black_rgb_mae": 0.008711552247405052,
+          "composite_white_rgb_mae": 0.012470937334001064
+        }
+      ]
+    },
+    {
+      "model": "flux_custom_58k",
+      "count": 24,
+      "mean": {
+        "iou": 0.9686548212839373,
+        "alpha_mae": 0.002933922228597415,
+        "opaque_rgb_mae": 0.014964777801651508,
+        "composite_black_rgb_mae": 0.002230584832432214,
+        "composite_white_rgb_mae": 0.0027550729234159612
+      },
+      "items": [
+        {
+          "id": "remover_mixed_v1_holdout/0000_anime_00551.png",
+          "iou": 0.7081632653061225,
+          "alpha_mae": 0.0016703384462743998,
+          "opaque_rgb_mae": 0.05744941160082817,
+          "composite_black_rgb_mae": 0.0006339721148833632,
+          "composite_white_rgb_mae": 0.0011906125582754612
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0001_melting_gold_00042.png",
+          "iou": 0.868029406490945,
+          "alpha_mae": 0.005719455890357494,
+          "opaque_rgb_mae": 0.03476523235440254,
+          "composite_black_rgb_mae": 0.0029743530321866274,
+          "composite_white_rgb_mae": 0.004585453309118748
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0002_line_draw_00019.png",
+          "iou": 0.9838851450336947,
+          "alpha_mae": 0.0013867005473002791,
+          "opaque_rgb_mae": 0.012921870686113834,
+          "composite_black_rgb_mae": 0.001054419670253992,
+          "composite_white_rgb_mae": 0.0011177168926224113
+        },
+        {
+          "id": "remover_mixed_v1_holdout/0003_furry_00007.png",
+          "iou": 0.9640024405125076,
+          "alpha_mae": 0.000986136612482369,
+          "opaque_rgb_mae": 0.04431819170713425,
+          "composite_black_rgb_mae": 0.0008556032553315163,
+          "composite_white_rgb_mae": 0.0010703055886551738
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0000_melting_silver_00012.png",
+          "iou": 0.9814514384598746,
+          "alpha_mae": 0.002317066304385662,
+          "opaque_rgb_mae": 0.0091891223564744,
+          "composite_black_rgb_mae": 0.001320463139563799,
+          "composite_white_rgb_mae": 0.0018408583709970117
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0003_steampunk_00022.png",
+          "iou": 0.9999595546972163,
+          "alpha_mae": 0.001702786423265934,
+          "opaque_rgb_mae": 0.002625795779749751,
+          "composite_black_rgb_mae": 0.0013653083005920053,
+          "composite_white_rgb_mae": 0.002273998688906431
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0004_anime_00507.png",
+          "iou": 0.9965903490896498,
+          "alpha_mae": 0.003394033294171095,
+          "opaque_rgb_mae": 0.0032936427742242813,
+          "composite_black_rgb_mae": 0.0025640649255365133,
+          "composite_white_rgb_mae": 0.0018686945550143719
+        },
+        {
+          "id": "remover_mixed_v1_holdout/hard_0007_melting_gold_00024.png",
+          "iou": 0.9298977261443749,
+          "alpha_mae": 0.003702131099998951,
+          "opaque_rgb_mae": 0.014552020467817783,
+          "composite_black_rgb_mae": 0.0021663198713213205,
+          "composite_white_rgb_mae": 0.003027853323146701
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0000_pixel_art_00031.png",
+          "iou": 0.9988586874906142,
+          "alpha_mae": 0.0008771387510932982,
+          "opaque_rgb_mae": 0.0023856351617723703,
+          "composite_black_rgb_mae": 0.0008363687666133046,
+          "composite_white_rgb_mae": 0.0011662425240501761
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0001_Pokemon_00025.png",
+          "iou": 0.9827081581160639,
+          "alpha_mae": 0.004588029347360134,
+          "opaque_rgb_mae": 0.010607141070067883,
+          "composite_black_rgb_mae": 0.0026814937591552734,
+          "composite_white_rgb_mae": 0.0034415232948958874
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0002_watercolor_painting_00018.png",
+          "iou": 0.997526342842457,
+          "alpha_mae": 0.0008919909014366567,
+          "opaque_rgb_mae": 0.003919336479157209,
+          "composite_black_rgb_mae": 0.0007549352594651282,
+          "composite_white_rgb_mae": 0.0010504365200176835
+        },
+        {
+          "id": "fg_opaque_v2_holdout/0003_line_draw_00032.png",
+          "iou": 0.9983529831592528,
+          "alpha_mae": 0.0025627075228840113,
+          "opaque_rgb_mae": 0.012673883698880672,
+          "composite_black_rgb_mae": 0.0038262654561549425,
+          "composite_white_rgb_mae": 0.00398198002949357
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0000_metal_textured_00027.png",
+          "iou": 0.9994180336813007,
+          "alpha_mae": 0.0027392227202653885,
+          "opaque_rgb_mae": 0.0068458872847259045,
+          "composite_black_rgb_mae": 0.0022737933322787285,
+          "composite_white_rgb_mae": 0.0029567854944616556
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0001_pixel_art_00022.png",
+          "iou": 0.9969304229195088,
+          "alpha_mae": 0.0009252268355339766,
+          "opaque_rgb_mae": 0.013376563787460327,
+          "composite_black_rgb_mae": 0.000995789305306971,
+          "composite_white_rgb_mae": 0.0014447520952671766
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0002_Pokemon_00401.png",
+          "iou": 0.9911267906777849,
+          "alpha_mae": 0.0024736879859119654,
+          "opaque_rgb_mae": 0.006724730134010315,
+          "composite_black_rgb_mae": 0.002155466703698039,
+          "composite_white_rgb_mae": 0.0012263322714716196
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0003_melting_gold_00015.png",
+          "iou": 0.9974842552026287,
+          "alpha_mae": 0.0013220127439126372,
+          "opaque_rgb_mae": 0.014680077321827412,
+          "composite_black_rgb_mae": 0.004332514945417643,
+          "composite_white_rgb_mae": 0.0033543864265084267
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0004_wood_carving_00021.png",
+          "iou": 0.9927774354761416,
+          "alpha_mae": 0.0023056776262819767,
+          "opaque_rgb_mae": 0.010130892507731915,
+          "composite_black_rgb_mae": 0.0015046776970848441,
+          "composite_white_rgb_mae": 0.0021490363869816065
+        },
+        {
+          "id": "fg_opaque_v2_holdout/hard_0005_neon_graffiti_00034.png",
+          "iou": 0.9884891475173088,
+          "alpha_mae": 0.002289003459736705,
+          "opaque_rgb_mae": 0.021664388477802277,
+          "composite_black_rgb_mae": 0.002174895955249667,
+          "composite_white_rgb_mae": 0.003112515201792121
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0000_papercut_art_00007.png",
+          "iou": 0.968665200377046,
+          "alpha_mae": 0.011220685206353664,
+          "opaque_rgb_mae": 0.012521961703896523,
+          "composite_black_rgb_mae": 0.006665112916380167,
+          "composite_white_rgb_mae": 0.007647354155778885
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0001_3D_00101.png",
+          "iou": 0.9956351214574899,
+          "alpha_mae": 0.0010442804777994752,
+          "opaque_rgb_mae": 0.013356534764170647,
+          "composite_black_rgb_mae": 0.0011081701377406716,
+          "composite_white_rgb_mae": 0.001235711039043963
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0002_cartoon_00183.png",
+          "iou": 0.9587876906360355,
+          "alpha_mae": 0.005175649654120207,
+          "opaque_rgb_mae": 0.012086921371519566,
+          "composite_black_rgb_mae": 0.003948424477130175,
+          "composite_white_rgb_mae": 0.006359437480568886
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0003_anime_00308.png",
+          "iou": 0.9784172661870504,
+          "alpha_mae": 0.0018984003691002727,
+          "opaque_rgb_mae": 0.02075657621026039,
+          "composite_black_rgb_mae": 0.001862222678028047,
+          "composite_white_rgb_mae": 0.0016215475043281913
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0004_line_draw_00016.png",
+          "iou": 0.9880624117291008,
+          "alpha_mae": 0.0032503907568752766,
+          "opaque_rgb_mae": 0.004549484234303236,
+          "composite_black_rgb_mae": 0.001071208855137229,
+          "composite_white_rgb_mae": 0.0026643455494195223
+        },
+        {
+          "id": "fg_opaque_v1_holdout/0005_kid_crayon_drawing_00016.png",
+          "iou": 0.9824964376103278,
+          "alpha_mae": 0.0059713805094361305,
+          "opaque_rgb_mae": 0.013759365305304527,
+          "composite_black_rgb_mae": 0.0044081914238631725,
+          "composite_white_rgb_mae": 0.005733870901167393
+        }
+      ]
+    }
+  ]
+}
