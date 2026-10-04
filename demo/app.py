@@ -16,8 +16,6 @@ Usage:  python app.py [--host 127.0.0.1] [--port 7860] [--check-weights]
 import argparse
 import gc
 import os
-import json
-import subprocess
 import sys
 import tempfile
 import threading
@@ -66,9 +64,8 @@ TASKS = {
 
 PRELOAD = os.environ.get("PRELOAD_9B", "1") == "1"
 DEFAULT_EXTRACT_MODEL = os.environ.get("EXTRACT_MODEL", "9B").upper()
-if DEFAULT_EXTRACT_MODEL not in ("4B", "9B", "QWEN"):
-    raise ValueError("EXTRACT_MODEL must be 4B, 9B or QWEN")
-EXTRACT_MODELS = [("FLUX Klein 4B", "4B"), ("FLUX Klein 9B", "9B"), ("Qwen Image 2.1", "QWEN")]
+if DEFAULT_EXTRACT_MODEL not in ("4B", "9B"):
+    raise ValueError("EXTRACT_MODEL must be 4B or 9B")
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(HERE)
 EX = os.path.join(HERE, "examples")
@@ -181,9 +178,9 @@ def over(rgba, bg="checker"):
     return base
 
 
-def gen_size(w, h, area, multiple=16):
+def gen_size(w, h, area):
     s = (area / (w * h)) ** 0.5
-    return max(multiple, round(w * s / multiple) * multiple), max(multiple, round(h * s / multiple) * multiple)
+    return max(16, round(w * s / 16) * 16), max(16, round(h * s / 16) * 16)
 
 
 def pad_to_ar(ims):
@@ -279,7 +276,6 @@ class Engine:
             self._ready.set()
 
     def _load(self):
-        find_aitk()
         from toolkit.config_modules import ModelConfig
         from extensions_built_in.diffusion_models.flux2.flux2_klein_model import Flux2Klein9BModel, Flux2Klein4BModel
         from extensions_built_in.diffusion_models.flux2.flux2_model import Flux2Model
@@ -346,8 +342,7 @@ class Engine:
     def wait(self, progress=None):
         if not self._ready.is_set():
             if progress is not None:
-                label = "Qwen Image 2.1" if self.size == "QWEN" else f"FLUX.2 Klein {self.size}"
-                progress(0, desc=f"Loading {label}...")
+                progress(0, desc=f"Loading FLUX.2 Klein {self.size}...")
             if self.sd is None and not self._loading:
                 self._loading = True
                 self.load()
@@ -419,92 +414,18 @@ class Engine:
         return img
 
 
-class QwenEngine(Engine):
-    """Persistent Qwen worker in its own Python environment, on the demo GPU."""
-    def __init__(self):
-        super().__init__("QWEN")
-        self.worker = None
-        self.worker_log = None
-        self.peak_vram = 0
-
-    def _request(self, command, progress=None):
-        self.worker.stdin.write(json.dumps(command) + "\n")
-        self.worker.stdin.flush()
-        while True:
-            line = self.worker.stdout.readline()
-            if not line:
-                raise RuntimeError(f"Qwen worker exited. See {self.worker_log.name}")
-            response = json.loads(line)
-            if "progress" in response:
-                if progress is not None:
-                    progress(response["progress"], desc=response["desc"])
-                continue
-            if not response.get("ok"):
-                raise RuntimeError(response.get("error", "Qwen worker failed"))
-            return response
-
-    def _load(self):
-        python = os.environ.get("QWEN_PYTHON", sys.executable)
-        self.worker_log = tempfile.NamedTemporaryFile(prefix="plate_extract_worker_", suffix=".log", mode="w", delete=False)
-        self.worker = subprocess.Popen([python, "-u", os.path.join(HERE, "qwen_extract.py"), "--worker"],
-                                       stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-                                       stderr=self.worker_log, text=True, bufsize=1)
-        try:
-            response = self._request({"action": "load"})
-        except Exception:
-            self.worker.terminate()
-            self.worker.wait()
-            raise
-        self.sd = self.worker
-        self.loras = {"extract": response["modules"]}
-        self.load_seconds = response["load_seconds"]
-
-    def generate(self, task, controls, size, progress=None, desc="", seed=None, steps=None):
-        if task != "extract":
-            raise ValueError("Qwen supports extraction; removal uses FLUX Klein 9B")
-        with GPU_LOCK, tempfile.TemporaryDirectory(prefix="plate_extract_") as folder:
-            comp, bg, output = [os.path.join(folder, name) for name in ("composite.png", "plate.png", "output.png")]
-            controls[0].save(comp)
-            controls[1].save(bg)
-            response = self._request(dict(action="extract", composite=comp, background=bg, output=output,
-                                          width=size[0], height=size[1], seed=0 if seed is None else int(seed)), progress)
-            self.peak_vram = response["peak_vram_gib"]
-            with Image.open(output) as image:
-                return image.copy()
-
-    def unload(self):
-        if self.worker is not None and self.worker.poll() is None:
-            try:
-                self._request({"action": "unload"})
-                self.worker.wait(timeout=30)
-            except Exception:
-                self.worker.kill()
-                self.worker.wait()
-        if self.worker is not None:
-            self.worker.stdin.close()
-            self.worker.stdout.close()
-        if self.worker_log is not None:
-            self.worker_log.close()
-        self.worker = self.sd = self.pipe = None
-        self._ready.clear()
-
-
-def new_engine(model):
-    return QwenEngine() if model == "QWEN" else Engine(model)
-
-
-ENGINE = new_engine(DEFAULT_EXTRACT_MODEL)
+ENGINE = Engine(DEFAULT_EXTRACT_MODEL)
 
 
 def get_engine(size, progress=None):
-    """Keep only one base resident when switching between FLUX and Qwen."""
+    """Keep only one base model resident so 4B and 9B can share a single GPU."""
     global ENGINE
     if ENGINE.size != size:
         if ENGINE._loading and not ENGINE._ready.is_set():
             ENGINE._ready.wait()
         with GPU_LOCK:
             ENGINE.unload()
-            ENGINE = new_engine(size)
+            ENGINE = Engine(size)
     ENGINE.wait(progress)
     return ENGINE
 
@@ -528,8 +449,7 @@ VAE_ = VAE()
 
 # ----------------------------------------------------------------------------------------------- task functions
 def _vram():
-    return max(torch.cuda.max_memory_allocated(DEV) / 2**30,
-               ENGINE.peak_vram if isinstance(ENGINE, QwenEngine) else 0)
+    return torch.cuda.max_memory_allocated(DEV) / 2**30
 
 
 def run_extract_core(comp, plate, area, progress, desc="Extracting", model="9B"):
@@ -537,7 +457,7 @@ def run_extract_core(comp, plate, area, progress, desc="Extracting", model="9B")
     comp = comp.convert("RGB")
     plate = plate.convert("RGB").resize(comp.size, Image.BICUBIC)
     (comp_in, plate_in), (pw, ph), box = pad_to_ar([comp, plate])
-    W, H = gen_size(pw, ph, area, multiple=32 if model == "QWEN" else 16)
+    W, H = gen_size(pw, ph, area)
     out = engine.generate("extract", [comp_in.resize((W, H), Image.BICUBIC), plate_in.resize((W, H), Image.BICUBIC)],
                           (W, H), progress, desc)
     cw, ch = comp.size
@@ -575,8 +495,7 @@ def tab_extract(comp, plate, res, model="9B", progress=gr.Progress()):
     rgba, gs = run_extract_core(comp, plate, AREAS[res], progress, model=model)
     dt = time.time() - t
     a = np.asarray(rgba)[..., 3]
-    label = "PlateExtract (Qwen)" if model == "QWEN" else f"Extract-{model}"
-    status = (f"{label}: done in {dt:.1f} s at generation size {gs[0]}x{gs[1]} (peak VRAM {_vram():.1f} GB). "
+    status = (f"Extract-{model}: done in {dt:.1f} s at generation size {gs[0]}x{gs[1]} (peak VRAM {_vram():.1f} GB). "
               f"Opaque pixels: {100 * (a > 127).mean():.1f}%.")
     return over(rgba), rgba.getchannel("A"), save_png(rgba, "cutout"), status
 
@@ -684,9 +603,9 @@ def ex_editor(photo):
     return {"background": os.path.join(EX, photo), "layers": [], "composite": None}
 
 
-INTRO = """# RGBA extraction — FLUX Klein 4B / 9B or Qwen Image 2.1
-Choose an extractor to get a transparent PNG. Qwen uses its native RGBA VAE; object removal uses FLUX Remove-9B.
-Built with Qwen. Generation runs on one GPU, one request at a time. Switching extractors reloads the model.
+INTRO = """# FLUX.2 Klein Alpha — RGBA extraction with Klein 4B or 9B
+Choose Extract-4B or Extract-9B. Both return continuous transparency; object removal uses Remove-9B.
+Generation runs on one GPU, one request at a time. Switching model sizes reloads the model; requests queue up.
 """
 
 with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
@@ -694,7 +613,7 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
     with gr.Tabs():
         # ---- Extract
         with gr.Tab("Extract"):
-            gr.Markdown("**FLUX 4B / FLUX 9B / Qwen.** Give the picture with the object (*composite*) and the same picture "
+            gr.Markdown("**Extract-4B / Extract-9B.** Give the picture with the object (*composite*) and the same picture "
                         "**without** the object (*background plate*). Returns the object as a transparent RGBA PNG.")
             with gr.Row():
                 with gr.Column():
@@ -702,7 +621,7 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
                     ex_plate = gr.Image(label="Background plate (same background, no object)", type="pil",
                                         image_mode="RGB", height=320)
                     ex_res = gr.Radio(list(AREAS), value=list(AREAS)[0], label="Generation size (pixel area)")
-                    ex_model = gr.Radio(EXTRACT_MODELS, value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
+                    ex_model = gr.Radio(["4B", "9B"], value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
                     ex_btn = gr.Button("Extract", variant="primary")
                 with gr.Column():
                     ex_out = gr.Image(label="Cut-out on checkerboard", type="pil", format="png", height=380)
@@ -719,13 +638,13 @@ with gr.Blocks(title="FLUX.2 Klein Alpha demo") as demo:
         with gr.Tab("Extract (auto background)"):
             gr.Markdown("**Remove-9B, then your chosen extractor.** No plate needed: brush over the object, the remover "
                         "paints the background plate, and the extractor cuts the object out against it. "
-                        "Takes two generations. Choosing 4B or Qwen reloads the model between stages. Quality depends on the remover (see README).")
+                        "Takes two generations. Choosing 4B also reloads the model between stages. Quality depends on the remover (see README).")
             with gr.Row():
                 with gr.Column():
                     au_ed = mask_editor("Photo — brush over the object to cut out")
                     au_mask_in = mask_upload()
                     au_res = gr.Radio(list(AREAS), value=list(AREAS)[0], label="Generation size (pixel area)")
-                    au_model = gr.Radio(EXTRACT_MODELS, value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
+                    au_model = gr.Radio(["4B", "9B"], value=DEFAULT_EXTRACT_MODEL, label="Extractor model")
                     au_grow = gr.Slider(0, 40, value=8, step=1, label="Grow brushed mask (px)")
                     au_btn = gr.Button("Extract with generated plate", variant="primary")
                 with gr.Column():
@@ -799,15 +718,12 @@ def main():
             for t in TASKS:
                 print(f"{t} LoRA:".ljust(14), lora_path(t))
             print("extract 4B:", lora_path("extract", "4B"))
-            from qwen_extract import lora_path as qwen_lora_path
-            print("extract Qwen:", qwen_lora_path())
         except WeightsError as e:
             sys.exit(f"ERROR: {e}")
         return
 
-    if DEFAULT_EXTRACT_MODEL != "QWEN":
-        aitk = find_aitk()
-        print(f"ai-toolkit:    {aitk}", flush=True)
+    aitk = find_aitk()
+    print(f"ai-toolkit:    {aitk}", flush=True)
     if not torch.cuda.is_available():
         sys.exit("A CUDA GPU is required.")
     if PRELOAD:
