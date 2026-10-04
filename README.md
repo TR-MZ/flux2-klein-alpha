@@ -12,8 +12,6 @@ Author: Xavier Jara
 | **Remove** | **VAE encode/decode** |
 | ![Remove tab](demo/screenshots/remove.png) | ![VAE tab](demo/screenshots/vae.png) |
 
-On the anime holdout example, Extract-9B at 512² gives a cut-out whose alpha mask has an IoU of 0.988 with the ground truth. The VAE reconstructs that example's alpha with an RMSE of 2.4/255.
-
 ## Get the weights
 
 The weights are in the Hugging Face repo [`trmz/flux2-klein-alpha`](https://huggingface.co/trmz/flux2-klein-alpha):
@@ -29,8 +27,6 @@ trmz/flux2-klein-alpha
     └── remove_9b.safetensors                # Remove-9B LoRA (FLUX.2 Klein Base 9B)
 ```
 
-You don't have to download anything by hand. On first use the demo fetches these files into the Hugging Face cache. To keep a local copy instead:
-
 ```bash
 huggingface-cli download trmz/flux2-klein-alpha --local-dir weights
 # then point the demo at it:
@@ -44,7 +40,7 @@ Extract-4B uses [`black-forest-labs/FLUX.2-klein-base-4B`](https://huggingface.c
 
 ### Licences
 
-- **RGBA VAE and Extract-4B:** Apache 2.0. BFL explicitly releases the [FLUX.2 VAE under Apache 2.0](https://bfl.ai/blog/flux-2), separately from the FLUX.2-dev transformer.
+- **RGBA VAE and Extract-4B:** Apache 2.0.
 - **Extract-9B and Remove-9B:** [FLUX Non-Commercial License](https://huggingface.co/black-forest-labs/FLUX.2-klein-base-9B/blob/main/LICENSE.md).
 
 ## Quick start
