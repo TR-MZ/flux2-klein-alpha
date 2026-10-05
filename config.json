@@ -1,0 +1,21 @@
+{
+  "format": "flux2-klein-alpha-bundle",
+  "vae": {
+    "config": "vae/config.json",
+    "weights": "vae/diffusion_pytorch_model.safetensors"
+  },
+  "adapters": {
+    "extract_4b": {
+      "base_model": "black-forest-labs/FLUX.2-klein-base-4B",
+      "weights": "loras/extract_4b.safetensors"
+    },
+    "extract_9b": {
+      "base_model": "black-forest-labs/FLUX.2-klein-base-9B",
+      "weights": "loras/extract_9b.safetensors"
+    },
+    "remove_9b": {
+      "base_model": "black-forest-labs/FLUX.2-klein-base-9B",
+      "weights": "loras/remove_9b.safetensors"
+    }
+  }
+}

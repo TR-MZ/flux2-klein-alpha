@@ -20,6 +20,7 @@ import sys
 import tempfile
 import threading
 import time
+from functools import lru_cache
 
 import numpy as np
 import torch
@@ -100,11 +101,24 @@ class WeightsError(RuntimeError):
     pass
 
 
+@lru_cache(maxsize=1)
+def _hf_bundle_config():
+    """Fetch the bundle manifest once alongside remote weights."""
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.errors import EntryNotFoundError
+    try:
+        return hf_hub_download(HF_REPO, "config.json", revision=HF_REVISION)
+    except EntryNotFoundError:
+        # Older revisions and custom repos may not have a bundle manifest.
+        return None
+
+
 def _hf_file(filename):
     from huggingface_hub import hf_hub_download
     from huggingface_hub.errors import (EntryNotFoundError, GatedRepoError, LocalEntryNotFoundError,
                                         RepositoryNotFoundError, RevisionNotFoundError)
     try:
+        _hf_bundle_config()
         return hf_hub_download(HF_REPO, filename, revision=HF_REVISION)
     except GatedRepoError as e:
         raise WeightsError(f"Hugging Face repo '{HF_REPO}' is gated: accept its terms on huggingface.co and log in "
